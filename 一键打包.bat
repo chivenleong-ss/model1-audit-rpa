@@ -1,0 +1,1 @@
+python -m PyInstaller --onefile web_app.py

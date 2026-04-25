@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>效益审核自动填报平台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#071727;
+  --navy:#10233f;
+  --blue:#1a57c0;
+  --cyan:#2b8bdc;
+  --mint:#0a7d54;
+  --mint-bg:#edf9f4;
+  --amber:#a66404;
+  --red:#c0392b;
+  --red-bg:#fff0ee;
+  --line:#cadcf0;
+  --muted:#536b87;
+  --panel:#ffffffd9;
+  --soft:#eef5ff;
+  font-family:"Noto Sans SC","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  min-height:100vh;color:var(--ink);
+  background:
+    linear-gradient(120deg,rgba(26,87,192,.12),transparent 32%),
+    linear-gradient(220deg,rgba(10,125,84,.08),transparent 28%),
+    #f5f8fc;
+}
+.top{
+  background:linear-gradient(145deg,#071827,#12345e 60%,#1f6fb2);
+  color:#fff;padding:28px 24px;box-shadow:0 16px 42px rgba(7,23,39,.16);
+}
+.top-in{max-width:1040px;margin:auto;display:flex;align-items:center;gap:16px}
+.logo{
+  width:48px;height:48px;border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(135deg,#2b8bdc,#5db8e8);font-size:24px;font-weight:700;
+}
+h1{font-size:1.24rem;letter-spacing:0;font-weight:700}
+.top p{font-size:.78rem;color:rgba(255,255,255,.68);margin-top:4px}
+.badge{margin-left:auto;font-size:.72rem;border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:6px 12px;color:rgba(255,255,255,.72)}
+main{max-width:1040px;margin:auto;padding:30px 20px 76px}
+.steps{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px}
+.step{
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;
+  display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.78rem;
+}
+.num{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--soft);font-weight:700}
+.step.active{border-color:#82b8ef;color:var(--blue)}
+.step.active .num{background:var(--blue);color:#fff}
+.step.done{color:var(--mint)}
+.step.done .num{background:var(--mint);color:#fff}
+.card{
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:24px;margin-bottom:16px;box-shadow:0 12px 32px rgba(16,35,63,.07);
+}
+.ctitle{font-size:.75rem;font-weight:700;color:var(--muted);letter-spacing:.8px;margin-bottom:16px}
+.drop{
+  border:2px dashed var(--line);border-radius:12px;background:var(--soft);padding:30px 22px;
+  position:relative;text-align:center;transition:.18s;
+}
+.drop.over{border-color:var(--cyan);background:#e3f2ff}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.drop-title{font-size:1rem;font-weight:700}
+.drop-sub{font-size:.76rem;color:var(--muted);margin-top:8px}
+.file-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin-top:14px}
+.file-pill{
+  border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 10px;
+  font-size:.72rem;color:var(--muted);word-break:break-all;
+}
+.runrow{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:18px}
+.hint{font-size:.74rem;color:var(--muted)}
+.btn{
+  border:0;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700;
+  display:inline-flex;align-items:center;gap:7px;transition:.18s;text-decoration:none;
+}
+.btn-primary{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;padding:11px 22px;box-shadow:0 6px 18px rgba(26,87,192,.26)}
+.btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 22px rgba(26,87,192,.34)}
+.btn-secondary{background:#eef5ff;color:var(--blue);border:1px solid var(--line);padding:9px 14px;font-size:.76rem}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+.summary{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:.78rem;color:var(--muted)}
+.summary strong{color:var(--ink)}
+.groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.group-card{
+  background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;
+  display:flex;flex-direction:column;gap:12px;min-height:230px;
+}
+.group-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.pc{font-size:1rem;font-weight:800;color:var(--navy)}
+.status{font-size:.7rem;border-radius:999px;padding:4px 9px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.status.ready{background:var(--mint-bg);color:var(--mint)}
+.status.running{background:#e8f2ff;color:var(--blue)}
+.status.done{background:var(--mint-bg);color:var(--mint)}
+.status.error{background:var(--red-bg);color:var(--red)}
+.status.queued{background:#fff7e8;color:var(--amber)}
+.files{display:flex;flex-direction:column;gap:6px}
+.file-row{font-size:.72rem;color:var(--muted);line-height:1.55}
+.file-row b{color:var(--ink)}
+.bar{height:6px;background:var(--soft);border-radius:999px;overflow:hidden}
+.fill{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--cyan));transition:width .35s}
+.logs{
+  display:none;max-height:140px;overflow:auto;background:#f7fbff;border:1px solid var(--line);
+  border-radius:8px;padding:9px 10px;font-size:.68rem;line-height:1.7;color:var(--muted);
+  font-family:Consolas,"Microsoft YaHei",monospace;white-space:pre-wrap;
+}
+.logs.open{display:block}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+.errorbox{
+  background:var(--red-bg);border:1px solid #f2c4c0;border-radius:8px;
+  color:var(--red);padding:9px 10px;font-size:.7rem;line-height:1.65;white-space:pre-wrap;
+}
+.rejected{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.rejected-title{font-size:.73rem;font-weight:700;color:var(--amber);margin-bottom:8px}
+footer{text-align:center;color:var(--muted);font-size:.68rem;padding:22px}
+@media(max-width:660px){
+  .top-in{align-items:flex-start}.badge{display:none}.steps{grid-template-columns:1fr}
+  .card{padding:18px}.runrow{align-items:stretch;flex-direction:column}.btn-primary{justify-content:center}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="logo">SAP</div>
+    <div>
+      <h1>效益审核自动填报平台</h1>
+      <p>批量上传 · 利润中心自动分组 · 串行生成审计交付件</p>
+    </div>
+    <div class="badge">审计部内部系统</div>
+  </div>
+</header>
+
+<main>
+  <div class="steps">
+    <div class="step active" id="step1"><span class="num">1</span><span>上传识别</span></div>
+    <div class="step" id="step2"><span class="num">2</span><span>串行处理</span></div>
+    <div class="step" id="step3"><span class="num">3</span><span>下载结果</span></div>
+  </div>
+
+  <section class="card">
+    <div class="ctitle">批量上传</div>
+    <div class="drop" id="drop" ondragover="dragOver(event)" ondragleave="dragLeave()" ondrop="dropFiles(event)">
+      <input id="fileInput" type="file" multiple accept=".xlsx,.xls,.csv" onchange="pickFiles(event)">
+      <div class="drop-title">选择或拖入凭证、明细、发票文件</div>
+      <div class="drop-sub">系统会读取前 10 行，按利润中心编码自动分组</div>
+    </div>
+    <div class="file-list" id="fileList"></div>
+    <div class="runrow">
+      <span class="hint" id="uploadHint">请选择需要处理的文件</span>
+      <button class="btn btn-primary" id="previewBtn" onclick="previewBatch()" disabled>上传并识别分组</button>
+    </div>
+  </section>
+
+  <section class="card" id="groupPanel" style="display:none">
+    <div class="ctitle">利润中心分组确认</div>
+    <div class="summary" id="summary"></div>
+    <div class="groups" id="groups"></div>
+    <div class="rejected" id="rejected" style="display:none"></div>
+    <div class="runrow">
+      <span class="hint" id="startHint">确认分组后开始处理全部</span>
+      <button class="btn btn-primary" id="startBtn" onclick="startBatch()">开始处理全部</button>
+    </div>
+  </section>
+</main>
+
+<footer>效益审核自动填报平台 · 审计部内部系统</footer>
+
+<script>
+const S = {
+  files: [],
+  batchId: '',
+  groups: [],
+  cards: new Map(),
+  pollers: new Map(),
+  logIndex: new Map()
+}
+
+function esc(value){
+  return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+}
+
+function setStep(n){
+  [1,2,3].forEach(i=>{
+    const el = document.getElementById('step'+i)
+    el.classList.remove('active','done')
+    if(i < n) el.classList.add('done')
+    if(i === n) el.classList.add('active')
+  })
+}
+
+function pickFiles(event){ setFiles(Array.from(event.target.files || [])) }
+function dragOver(event){ event.preventDefault(); document.getElementById('drop').classList.add('over') }
+function dragLeave(){ document.getElementById('drop').classList.remove('over') }
+function dropFiles(event){
+  event.preventDefault()
+  dragLeave()
+  setFiles(Array.from(event.dataTransfer.files || []))
+}
+
+function setFiles(files){
+  S.files = files
+  S.batchId = ''
+  S.groups = []
+  S.cards.clear()
+  document.getElementById('groupPanel').style.display = 'none'
+  document.getElementById('previewBtn').disabled = files.length === 0
+  document.getElementById('uploadHint').textContent = files.length ? `已选择 ${files.length} 个文件` : '请选择需要处理的文件'
+  document.getElementById('fileList').innerHTML = files.map(file => `<div class="file-pill">${esc(file.name)}</div>`).join('')
+  setStep(1)
+}
+
+async function previewBatch(){
+  const btn = document.getElementById('previewBtn')
+  btn.disabled = true
+  btn.textContent = '正在识别...'
+  const fd = new FormData()
+  fd.append('action','preview')
+  S.files.forEach(file => fd.append('files', file))
+  try{
+    const resp = await fetch('/api/submit_batch', {method:'POST', body:fd})
+    const data = await resp.json()
+    if(!resp.ok || data.error) throw new Error(data.error || '批量上传失败')
+    S.batchId = data.batch_id
+    S.groups = data.groups || []
+    renderGroups(data.rejected || [])
+  }catch(err){
+    alert(err.message || '批量上传失败')
+  }finally{
+    btn.disabled = S.files.length === 0
+    btn.textContent = '上传并识别分组'
+  }
+}
+
+function renderGroups(rejected){
+  const panel = document.getElementById('groupPanel')
+  const groupsBox = document.getElementById('groups')
+  const readyCount = S.groups.filter(g => g.ready).length
+  panel.style.display = 'block'
+  document.getElementById('summary').innerHTML =
+    `<span>识别到 <strong>${S.groups.length}</strong> 个利润中心分组，其中 <strong>${readyCount}</strong> 个具备凭证和明细。</span>`
+  document.getElementById('startBtn').disabled = S.groups.length === 0
+  document.getElementById('startHint').textContent = S.groups.length ? '确认分组后开始处理全部' : '未识别到可处理分组'
+
+  groupsBox.innerHTML = S.groups.map(group => {
+    const cardId = `pc_${group.profit_center}`
+    return `
+      <article class="group-card" id="${cardId}">
+        <div class="group-head">
+          <div>
+            <div class="pc">${esc(group.profit_center)}</div>
+            <div class="hint">利润中心</div>
+          </div>
+          <span class="status ${group.ready ? 'ready' : 'error'}" data-role="status">${group.ready ? '待确认' : '分组不完整'}</span>
+        </div>
+        ${group.error ? `<div class="errorbox">${esc(group.error)}</div>` : ''}
+        <div class="files">
+          ${fileLine('凭证主表', group.voucher_files)}
+          ${fileLine('辅助明细账', group.detail_files)}
+          ${fileLine('发票台账', group.invoice_files)}
+          ${fileLine('其他文件', group.other_files)}
+        </div>
+        <div class="bar"><div class="fill" data-role="fill"></div></div>
+        <div class="logs" data-role="logs"></div>
+        <div class="actions" data-role="actions">
+          <button class="btn btn-secondary" onclick="toggleLogs('${cardId}')">查看日志</button>
+        </div>
+      </article>`
+  }).join('')
+
+  S.cards.clear()
+  S.groups.forEach(group => S.cards.set(group.profit_center, document.getElementById(`pc_${group.profit_center}`)))
+
+  const rejectedBox = document.getElementById('rejected')
+  if(rejected.length){
+    rejectedBox.style.display = 'block'
+    rejectedBox.innerHTML = `<div class="rejected-title">未参与分组的文件</div>` +
+      rejected.map(item => `<div class="file-row"><b>${esc(item.filename)}</b>：${esc(item.error)}</div>`).join('')
+  }else{
+    rejectedBox.style.display = 'none'
+    rejectedBox.innerHTML = ''
+  }
+}
+
+function fileLine(label, files){
+  if(!files || !files.length) return `<div class="file-row"><b>${label}</b>：未识别</div>`
+  return `<div class="file-row"><b>${label}</b>：${files.map(esc).join('、')}</div>`
+}
+
+function toggleLogs(cardId){
+  const card = document.getElementById(cardId)
+  const logs = card.querySelector('[data-role="logs"]')
+  logs.classList.toggle('open')
+}
+
+async function startBatch(){
+  if(!S.batchId){
+    alert('请先上传并识别分组')
+    return
+  }
+  const btn = document.getElementById('startBtn')
+  btn.disabled = true
+  btn.textContent = '正在启动...'
+  const fd = new FormData()
+  fd.append('action','start')
+  fd.append('batch_id', S.batchId)
+  try{
+    const resp = await fetch('/api/submit_batch', {method:'POST', body:fd})
+    const data = await resp.json()
+    if(!resp.ok || data.error) throw new Error(data.error || '启动批量处理失败')
+    setStep(2)
+    document.getElementById('startHint').textContent = `已创建 ${data.job_ids.length} 个任务，系统正在串行处理`
+    if(!data.job_ids.length) finishIfAllSettled()
+    ;(data.jobs || []).forEach(job => {
+      const card = S.cards.get(job.profit_center)
+      if(card) card.dataset.jobId = job.job_id
+      S.logIndex.set(job.job_id, 0)
+      S.pollers.set(job.job_id, setInterval(() => pollJob(job.job_id, job.profit_center), 900))
+      pollJob(job.job_id, job.profit_center)
+    })
+  }catch(err){
+    alert(err.message || '启动批量处理失败')
+    btn.disabled = false
+    btn.textContent = '开始处理全部'
+  }
+}
+
+async function pollJob(jobId, profitCenter){
+  let data
+  try{
+    const resp = await fetch('/api/status/' + jobId)
+    data = await resp.json()
+  }catch(_){
+    return
+  }
+  const card = S.cards.get(profitCenter)
+  if(!card) return
+
+  setCardStatus(card, data.status, data.status)
+  card.querySelector('[data-role="fill"]').style.width = `${data.progress || 0}%`
+
+  const logs = card.querySelector('[data-role="logs"]')
+  const allLogs = data.all_logs || []
+  const start = S.logIndex.get(jobId) || 0
+  allLogs.slice(start).forEach(line => {
+    const div = document.createElement('div')
+    div.textContent = line
+    logs.appendChild(div)
+  })
+  S.logIndex.set(jobId, allLogs.length)
+  logs.scrollTop = logs.scrollHeight
+
+  if(data.status === 'done'){
+    clearInterval(S.pollers.get(jobId))
+    S.pollers.delete(jobId)
+    setCardStatus(card, 'done', '处理完成')
+    card.querySelector('[data-role="fill"]').style.width = '100%'
+    card.querySelector('[data-role="actions"]').innerHTML = `
+      <a class="btn btn-primary" href="/api/dl/${jobId}/delivery" target="_blank">下载交付版</a>
+      <a class="btn btn-secondary" href="/api/dl/${jobId}/merged" target="_blank">下载合并表</a>
+      <button class="btn btn-secondary" onclick="toggleLogs('${card.id}')">查看日志</button>`
+    finishIfAllSettled()
+  }
+
+  if(data.status === 'error'){
+    clearInterval(S.pollers.get(jobId))
+    S.pollers.delete(jobId)
+    setCardStatus(card, 'error', '处理失败')
+    const old = card.querySelector('.errorbox')
+    if(old) old.remove()
+    const err = document.createElement('div')
+    err.className = 'errorbox'
+    err.textContent = `${data.error_summary || '未知错误'}${data.error_detail ? '\n' + data.error_detail : ''}`
+    card.insertBefore(err, card.querySelector('.actions'))
+    finishIfAllSettled()
+  }
+}
+
+function setCardStatus(card, status, text){
+  const label = {queued:'等待中', running:'处理中', done:'处理完成', error:'处理失败'}[text] || text
+  const badge = card.querySelector('[data-role="status"]')
+  badge.className = `status ${status}`
+  badge.textContent = label
+}
+
+function finishIfAllSettled(){
+  if(S.pollers.size === 0){
+    setStep(3)
+    document.getElementById('startHint').textContent = '批量处理已结束，可在各分组卡片下载结果或查看错误'
+  }
+}
+</script>
+</body>
+</html>
