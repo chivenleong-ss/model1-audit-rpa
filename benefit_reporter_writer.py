@@ -176,6 +176,10 @@ class BenefitSheetWriter:
                         cell.value = re.sub(r'(?<=[A-Za-z])' + str(old_row) + r'(?!\d)', str(row), formula)
 
     def fix_all_sums(self, ws):
+        """
+        对所有成本节小计行，强制重写 SUM 公式及 O/P/Q/R 列公式，
+        不依赖原公式是否存在。确保所有引用的行号 == 当前行号。
+        """
         for hdr_kw, sub_kw in SUBTOTAL_MAP.items():
             hdr_row = self.locator.find_row(ws, hdr_kw)
             sub_row = self.locator.find_row(ws, sub_kw)
@@ -192,21 +196,29 @@ class BenefitSheetWriter:
                     break
             end_row = anchor if anchor else sub_row - 1
 
+            # 强制重写 SUM（所有列，只要发现该列有 SUM 公式）
             for col in range(1, ws.max_column + 1):
                 cell = ws.cell(sub_row, col)
-                if cell.value and isinstance(cell.value, str) and 'SUM(' in cell.value.upper():
-                    col_letter = openpyxl.utils.get_column_letter(col)
+                col_letter = openpyxl.utils.get_column_letter(col)
+                # M 列始终重写 SUM
+                if col == COL_M:
+                    cell.value = f"=SUM({col_letter}{hdr_row}:{col_letter}{end_row})"
+                    cell.number_format = '#,##0.00' if cell.number_format == 'General' else cell.number_format
+                elif col in (COL_O, COL_P, COL_Q, COL_R) or (cell.value and isinstance(cell.value, str) and 'SUM(' in cell.value.upper()):
                     cell.value = f"=SUM({col_letter}{hdr_row}:{col_letter}{end_row})"
 
+            # 强制重写锚点行 O/P/Q/R
             if anchor:
-                for col, formula in self.row_formulas(anchor, False).items():
-                    cell = ws.cell(anchor, col)
-                    if cell.value and isinstance(cell.value, str) and cell.value.startswith('=') and ':' not in cell.value:
-                        cell.value = formula
+                for col_idx, formula in self.row_formulas(anchor, False).items():
+                    ws.cell(anchor, col_idx).value = formula
 
-            self.log.info("   🧮 %-14s SUM 范围 行%d→%d", sub_kw, hdr_row, end_row)
+            self.log.info("   🧮 %-14s SUM 强制重写 行%d→%d（含 O/P/Q/R）", sub_kw, hdr_row, end_row)
 
     def fix_aggregate_rows(self, ws):
+        """
+        强制重写三、成本合计和八、成本及费用合计的公式。
+        不检查原公式是否存在，基于当前行号直接写入。
+        """
         subtotal_keywords = {
             '人工费小计': '（一）人工费',
             '分包工程小计': '（二）分包工程',
@@ -226,12 +238,11 @@ class BenefitSheetWriter:
         if cost_total_row and len(subtotal_rows) == len(subtotal_keywords):
             ordered = ['人工费小计', '分包工程小计', '材料费小计', '机械费小计', '其他直接费小计', '间接费小计', '安全费小计']
             refs = [subtotal_rows[key] for key in ordered]
+            safe_refs = [r for r in refs if r != cost_total_row]
             for col in range(8, ws.max_column + 1):
-                cell = ws.cell(cost_total_row, col)
-                if cell.value and isinstance(cell.value, str) and cell.value.startswith('='):
-                    col_letter = openpyxl.utils.get_column_letter(col)
-                    cell.value = '=' + '+'.join(f'{col_letter}{row}' for row in refs)
-            self.log.info("   🧮 三、成本合计 公式已修正（行 %d）", cost_total_row)
+                col_letter = openpyxl.utils.get_column_letter(col)
+                ws.cell(cost_total_row, col).value = '=' + '+'.join(f'{col_letter}{r}' for r in safe_refs)
+            self.log.info("   🧮 三、成本合计 强制重写（行 %d，引用 7 个小计行）", cost_total_row)
 
         total_row = self.locator.find_row(ws, '八、成本及费用合计')
         if total_row and cost_total_row:
@@ -242,13 +253,12 @@ class BenefitSheetWriter:
                 self.locator.find_row(ws, '六、资金占用费用'),
                 self.locator.find_row(ws, '七、局投资收益'),
             ]
-            if all(related_rows):
+            safe_related = [r for r in related_rows if r and r != total_row]
+            if len(safe_related) >= 2:
                 for col in range(8, ws.max_column + 1):
-                    cell = ws.cell(total_row, col)
-                    if cell.value and isinstance(cell.value, str) and cell.value.startswith('='):
-                        col_letter = openpyxl.utils.get_column_letter(col)
-                        cell.value = '=' + '+'.join(f'{col_letter}{row}' for row in related_rows)
-                self.log.info("   🧮 八、成本及费用合计 公式已修正（行 %d）", total_row)
+                    col_letter = openpyxl.utils.get_column_letter(col)
+                    ws.cell(total_row, col).value = '=' + '+'.join(f'{col_letter}{r}' for r in safe_related)
+                self.log.info("   🧮 八、成本及费用合计 强制重写（行 %d）", total_row)
 
     def build_lookups(self, df4):
         ven_col = '供应商名称' if '供应商名称' in df4.columns else ('供应商描述' if '供应商描述' in df4.columns else None)
