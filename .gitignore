@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+_smoke_output/
+1_上传原始数据/
+2_输出审计底稿/
+3_已处理数据备份/
+4_错误文件隔离区/
+_jobs/
+build/
+dist/
+*.log
