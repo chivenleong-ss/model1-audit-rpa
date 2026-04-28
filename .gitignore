@@ -1,11 +1,24 @@
-__pycache__/
-*.pyc
-_smoke_output/
+# 忽略临时输出目录
 1_上传原始数据/
 2_输出审计底稿/
 3_已处理数据备份/
 4_错误文件隔离区/
 _jobs/
+_smoke_output/
+
+# 忽略 Excel 数据文件（除模板外）
+*.xlsx
+*.xls
+*.XLSX
+*.XLS
+
+# 但保留模板文件（如果你需要上传模板）
+!项目效益审核表.xlsx
+
+# 忽略缓存和打包
+__pycache__/
+*.pyc
 build/
 dist/
+*.spec
 *.log
