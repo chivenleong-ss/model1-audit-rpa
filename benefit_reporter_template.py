@@ -40,6 +40,10 @@ SUBTOTAL_MAP = {
 class BenefitTemplateLocator:
     def __init__(self, logger):
         self.log = logger
+        self._row_cache: dict[tuple[int, str, tuple[int, ...], int, int], int | None] = {}
+
+    def clear_cache(self) -> None:
+        self._row_cache.clear()
 
     @staticmethod
     def norm(val) -> str:
@@ -60,10 +64,15 @@ class BenefitTemplateLocator:
         normalized = self.norm(keyword)
         if not normalized:
             return None
+        cache_key = (id(ws), normalized, tuple(cols), ws.max_row, ws.max_column)
+        if cache_key in self._row_cache:
+            return self._row_cache[cache_key]
         for row in range(1, ws.max_row + 1):
             for col in cols:
                 if normalized in self.norm(ws.cell(row, col).value):
+                    self._row_cache[cache_key] = row
                     return row
+        self._row_cache[cache_key] = None
         return None
 
     def find_material_row(self, ws, keyword) -> int | None:
@@ -84,6 +93,7 @@ class BenefitTemplateLocator:
         return None
 
     def load_template_sheet(self, template_path: str):
+        self._row_cache.clear()
         workbook = openpyxl.load_workbook(template_path)
         worksheet = workbook.active
         for sheet_name in workbook.sheetnames:

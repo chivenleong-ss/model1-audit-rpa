@@ -7,7 +7,6 @@ import sys
 import glob
 import time
 import shutil
-import logging
 from datetime import datetime
 
 # ── 确保任意工作目录下都能找到自定义模块 ──────────
@@ -19,10 +18,10 @@ from audit_pipeline import AuditPipeline                 # noqa: E402
 from sap_audit_core import setup_logger                  # noqa: E402
 
 # ── 核心目录定义 ────────────────────────────────────────────────
-INPUT_DIR  = "1_上传原始数据"
-OUTPUT_DIR = "2_输出审计底稿"
-BACKUP_DIR = "3_已处理数据备份"
-ERROR_DIR  = "4_错误文件隔离区"
+INPUT_DIR  = os.path.join(_THIS_DIR, "1_上传原始数据")
+OUTPUT_DIR = os.path.join(_THIS_DIR, "2_输出审计底稿")
+BACKUP_DIR = os.path.join(_THIS_DIR, "3_已处理数据备份")
+ERROR_DIR  = os.path.join(_THIS_DIR, "4_错误文件隔离区")
 
 for _d in [INPUT_DIR, OUTPUT_DIR, BACKUP_DIR, ERROR_DIR]:
     os.makedirs(_d, exist_ok=True)

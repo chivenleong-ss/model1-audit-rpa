@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import traceback
+import zipfile
 
 import pandas as pd
 
@@ -56,8 +57,21 @@ class BenefitReporter:
         for col in ['合同编码', '细分科目', '客商名称', '中台单据号']:
             if col in df.columns:
                 df[col] = df[col].fillna('').astype(str).str.strip().replace('nan', '')
-        df4 = pd.read_excel(merged_path) if os.path.exists(merged_path) else pd.DataFrame()
+        df4 = self._load_optional_merged_data(merged_path)
         return df, df4
+
+    def _load_optional_merged_data(self, merged_path: str) -> pd.DataFrame:
+        if not os.path.exists(merged_path):
+            self.log.warning("   ⚠️ 找不到合并表，跳过 B/N/T 辅助匹配：%s", merged_path)
+            return pd.DataFrame()
+        try:
+            return pd.read_excel(merged_path)
+        except (zipfile.BadZipFile, OSError, ValueError) as exc:
+            self.log.warning("   ⚠️ 合并表无法读取，跳过 B/N/T 辅助匹配：%s；原因：%s", merged_path, exc)
+            return pd.DataFrame()
+        except Exception as exc:
+            self.log.warning("   ⚠️ 读取合并表失败，跳过 B/N/T 辅助匹配：%s；原因：%s", merged_path, exc)
+            return pd.DataFrame()
 
     def _prepare_lookup_tables(self, df4):
         if df4.empty:
@@ -201,10 +215,13 @@ class BenefitReporter:
             wb, ws = self.locator.load_template_sheet(self.template_path)
 
             self.locator.fill_header_fields(ws, df, df4)
+            # ── 第1步：插入数据行 ──
             self._insert_category_rows(ws, df)
-            self._repair_formulas(ws)
+            # ── 第2步：填写固定项金额（必须在公式修复之前，否则公式会引用空值行号） ──
             self._fill_fixed_items(ws, df)
             self._fill_lookup_columns(ws, df4, vendor_lkp, pay_lkp, vat_lkp)
+            # ── 第3步：修复所有公式（此时所有数据已就位，基于当前行号重写） ──
+            self._repair_formulas(ws)
 
             out = os.path.join(self.result_dir, "自动填报完成_效益审核表.xlsx")
             self._finalize_workbook(wb, ws, out)

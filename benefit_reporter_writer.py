@@ -9,9 +9,9 @@ import copy as py_copy
 import os
 import re
 
-import openpyxl
 import pandas as pd
 from openpyxl.styles import Alignment, Border, Font, Side
+from openpyxl.utils import get_column_letter
 
 from benefit_reporter_template import (
     COL_A,
@@ -111,6 +111,7 @@ class BenefitSheetWriter:
         for row in reversed(to_delete):
             ws.delete_rows(row)
         if to_delete:
+            self.locator.clear_cache()
             self.log.info("      🗑 清除 %d 行（旧数据/公式占位行）", len(to_delete))
 
     def insert_rows(self, ws, anchor, action, rows_data, extended, is_rd=False):
@@ -126,6 +127,8 @@ class BenefitSheetWriter:
                 extended,
                 skip_fill=is_rd,
             )
+        if rows_data:
+            self.locator.clear_cache()
 
     def ensure_material_fixed_rows(self, ws, extended) -> None:
         hdr_row = self.locator.find_row(ws, '(三)材料费')
@@ -144,6 +147,7 @@ class BenefitSheetWriter:
             self.write_row(ws, insert_at, sub, None, None, extended)
             insert_at += 1
 
+        self.locator.clear_cache()
         self.log.info("   已自动补插材料费固定行: %s", "、".join(missing))
 
     def fix_stale_self_refs(self, ws):
@@ -175,10 +179,11 @@ class BenefitSheetWriter:
                     if old_row != row and old_row > 5:
                         cell.value = re.sub(r'(?<=[A-Za-z])' + str(old_row) + r'(?!\d)', str(row), formula)
 
+
     def fix_all_sums(self, ws):
         """
-        对所有成本节小计行，强制重写 SUM 公式及 O/P/Q/R 列公式，
-        不依赖原公式是否存在。确保所有引用的行号 == 当前行号。
+        对所有成本节小计行，强制重写全部列的 SUM 公式，
+        并强制重写锚点行和自身小计行的行内运算公式（O/P/Q/R/J/L 列）。
         """
         for hdr_kw, sub_kw in SUBTOTAL_MAP.items():
             hdr_row = self.locator.find_row(ws, hdr_kw)
@@ -196,81 +201,114 @@ class BenefitSheetWriter:
                     break
             end_row = anchor if anchor else sub_row - 1
 
-            # 强制重写 SUM（所有列，只要发现该列有 SUM 公式）
-            for col in range(1, ws.max_column + 1):
+            for col in range(COL_H, ws.max_column + 1):
                 cell = ws.cell(sub_row, col)
-                col_letter = openpyxl.utils.get_column_letter(col)
-                # M 列始终重写 SUM
-                if col == COL_M:
-                    cell.value = f"=SUM({col_letter}{hdr_row}:{col_letter}{end_row})"
-                    cell.number_format = '#,##0.00' if cell.number_format == 'General' else cell.number_format
-                elif col in (COL_O, COL_P, COL_Q, COL_R) or (cell.value and isinstance(cell.value, str) and 'SUM(' in cell.value.upper()):
-                    cell.value = f"=SUM({col_letter}{hdr_row}:{col_letter}{end_row})"
+                col_letter = get_column_letter(col)
+                cell.value = f'=SUM({col_letter}{hdr_row}:{col_letter}{end_row})'
+                if col == COL_M and cell.number_format == 'General':
+                    cell.number_format = '#,##0.00'
 
-            # 强制重写锚点行 O/P/Q/R
+            ws.cell(sub_row, COL_J).value = f'=H{sub_row}+I{sub_row}'
+            ws.cell(sub_row, COL_L).value = f'=J{sub_row}-K{sub_row}'
+            ws.cell(sub_row, COL_O).value = f'=L{sub_row}-M{sub_row}'
+            ws.cell(sub_row, COL_P).value = f'=K{sub_row}-N{sub_row}'
+            ws.cell(sub_row, COL_Q).value = f'=M{sub_row}+O{sub_row}'
+            ws.cell(sub_row, COL_R).value = f'=M{sub_row}+N{sub_row}+O{sub_row}+P{sub_row}'
+
             if anchor:
-                for col_idx, formula in self.row_formulas(anchor, False).items():
-                    ws.cell(anchor, col_idx).value = formula
+                ws.cell(anchor, COL_J).value = f'=H{anchor}+I{anchor}'
+                ws.cell(anchor, COL_L).value = f'=J{anchor}-K{anchor}'
+                ws.cell(anchor, COL_O).value = f'=L{anchor}-M{anchor}'
+                ws.cell(anchor, COL_P).value = f'=K{anchor}-N{anchor}'
+                ws.cell(anchor, COL_Q).value = f'=M{anchor}+O{anchor}'
+                ws.cell(anchor, COL_R).value = f'=M{anchor}+N{anchor}+O{anchor}+P{anchor}'
 
-            self.log.info("   🧮 %-14s SUM 强制重写 行%d→%d（含 O/P/Q/R）", sub_kw, hdr_row, end_row)
+            self.log.info("   🧮 %-14s SUM 全部列重写 行%d→%d；O/P/Q/R 行内运算重写",
+                         sub_kw, hdr_row, end_row)
 
     def fix_aggregate_rows(self, ws):
         """
-        强制重写三、成本合计和八、成本及费用合计的公式。
-        不检查原公式是否存在，基于当前行号直接写入。
+        强制重写汇总行的所有列公式。
+        覆盖行：三、成本合计，四~七各固定项，八、研发费用，八/九、成本及费用合计
         """
-        subtotal_keywords = {
-            '人工费小计': '（一）人工费',
-            '分包工程小计': '（二）分包工程',
-            '材料费小计': '(三)材料费',
-            '机械费小计': '(四）机械租赁费',
-            '其他直接费小计': '（五）其他直接费',
-            '间接费小计': '（六）间接费',
-            '安全费小计': '（七）安全费',
-        }
-        subtotal_rows = {}
-        for keyword in subtotal_keywords:
-            row = self.locator.find_row(ws, keyword)
-            if row:
-                subtotal_rows[keyword] = row
-
         cost_total_row = self.locator.find_row(ws, '三、成本合计')
-        if cost_total_row and len(subtotal_rows) == len(subtotal_keywords):
-            ordered = ['人工费小计', '分包工程小计', '材料费小计', '机械费小计', '其他直接费小计', '间接费小计', '安全费小计']
-            refs = [subtotal_rows[key] for key in ordered]
-            safe_refs = [r for r in refs if r != cost_total_row]
-            for col in range(8, ws.max_column + 1):
-                col_letter = openpyxl.utils.get_column_letter(col)
-                ws.cell(cost_total_row, col).value = '=' + '+'.join(f'{col_letter}{r}' for r in safe_refs)
-            self.log.info("   🧮 三、成本合计 强制重写（行 %d，引用 7 个小计行）", cost_total_row)
+        if cost_total_row:
+            subtotal_keywords = ['人工费小计', '分包工程小计', '材料费小计', '机械费小计', '其他直接费小计', '间接费小计', '安全费小计']
+            refs = []
+            for kw in subtotal_keywords:
+                r = self.locator.find_row(ws, kw)
+                if r and r != cost_total_row:
+                    refs.append(r)
+            if len(refs) == 7:
+                for col in range(COL_H, ws.max_column + 1):
+                    cl = get_column_letter(col)
+                    ws.cell(cost_total_row, col).value = '=' + '+'.join(f'{cl}{r}' for r in refs)
+                self.log.info("   🧮 三、成本合计 强制重写 行%d", cost_total_row)
 
-        total_row = self.locator.find_row(ws, '八、成本及费用合计')
+        r_yanfa = self.locator.find_row(ws, '八、研发费用')
+        if r_yanfa:
+            r_nine = self.locator.find_row(ws, '九、成本及费用合计') or self.locator.find_row(ws, '八、成本及费用合计')
+            if r_nine and r_nine > r_yanfa + 1:
+                start_row = r_yanfa + 1
+                end_row = r_nine - 1
+                if end_row < start_row:
+                    end_row = start_row
+                for col in range(COL_H, ws.max_column + 1):
+                    cl = get_column_letter(col)
+                    ws.cell(r_yanfa, col).value = f'=SUM({cl}{start_row}:{cl}{end_row})'
+                ws.cell(r_yanfa, COL_J).value = f'=H{r_yanfa}+I{r_yanfa}'
+                ws.cell(r_yanfa, COL_L).value = f'=J{r_yanfa}-K{r_yanfa}'
+                ws.cell(r_yanfa, COL_O).value = f'=L{r_yanfa}-M{r_yanfa}'
+                ws.cell(r_yanfa, COL_P).value = f'=K{r_yanfa}-N{r_yanfa}'
+                ws.cell(r_yanfa, COL_Q).value = f'=M{r_yanfa}+O{r_yanfa}'
+                ws.cell(r_yanfa, COL_R).value = f'=M{r_yanfa}+N{r_yanfa}+O{r_yanfa}+P{r_yanfa}'
+                self.log.info("   🧮 八、研发费用 强制重写 行%d", r_yanfa)
+
+        for kw in ['四、计提保修金', '五、过程节点奖金', '六、资金占用费用', '七、局投资收益']:
+            r = self.locator.find_row(ws, kw)
+            if r:
+                ws.cell(r, COL_J).value = f'=H{r}+I{r}'
+                ws.cell(r, COL_L).value = f'=J{r}-K{r}'
+                ws.cell(r, COL_O).value = f'=L{r}-M{r}'
+                ws.cell(r, COL_P).value = f'=K{r}-N{r}'
+                ws.cell(r, COL_Q).value = f'=M{r}+O{r}'
+                ws.cell(r, COL_R).value = f'=M{r}+N{r}+O{r}+P{r}'
+
+        total_row = self.locator.find_row(ws, '八、成本及费用合计') or self.locator.find_row(ws, '九、成本及费用合计')
         if total_row and cost_total_row:
-            related_rows = [
-                cost_total_row,
-                self.locator.find_row(ws, '四、计提保修金'),
-                self.locator.find_row(ws, '五、过程节点奖金'),
-                self.locator.find_row(ws, '六、资金占用费用'),
-                self.locator.find_row(ws, '七、局投资收益'),
-            ]
-            safe_related = [r for r in related_rows if r and r != total_row]
-            if len(safe_related) >= 2:
-                for col in range(8, ws.max_column + 1):
-                    col_letter = openpyxl.utils.get_column_letter(col)
-                    ws.cell(total_row, col).value = '=' + '+'.join(f'{col_letter}{r}' for r in safe_related)
-                self.log.info("   🧮 八、成本及费用合计 强制重写（行 %d）", total_row)
+            related_kws = ['三、成本合计', '四、计提保修金', '五、过程节点奖金', '六、资金占用费用', '七、局投资收益']
+            related_rows = []
+            for kw in related_kws:
+                r = self.locator.find_row(ws, kw)
+                if r and r != total_row:
+                    related_rows.append(r)
+            if related_rows:
+                for col in range(COL_H, ws.max_column + 1):
+                    cl = get_column_letter(col)
+                    ws.cell(total_row, col).value = '=' + '+'.join(f'{cl}{r}' for r in related_rows)
+                self.log.info("   🧮 成本及费用合计 强制重写 行%d", total_row)
 
     def build_lookups(self, df4):
+        required_cols = {'总账科目长文本', '供应商', '借方本位币金额'}
+        missing = required_cols - set(df4.columns)
+        if missing:
+            self.log.warning("   ⚠️ 合并表缺少字段，跳过 B/N/T 匹配：%s", "、".join(sorted(missing)))
+            return {}, {}, {}
+
         ven_col = '供应商名称' if '供应商名称' in df4.columns else ('供应商描述' if '供应商描述' in df4.columns else None)
 
         vendor_lkp = {}
         if ven_col:
             subset = df4[df4[ven_col].notna() & df4['供应商'].notna()]
             dedup_cols = [ven_col, '合同'] if '合同' in subset.columns else [ven_col]
-            for _, row in subset.drop_duplicates(dedup_cols).iterrows():
-                ven = self.locator.norm(str(row[ven_col]))
-                con = self.locator.norm(str(row.get('合同', '') or ''))
-                code = str(int(float(row['供应商']))) if pd.notna(row['供应商']) else ''
+            value_cols = [ven_col, '供应商'] + (['合同'] if '合同' in subset.columns else [])
+            for row in subset.drop_duplicates(dedup_cols)[value_cols].itertuples(index=False, name=None):
+                ven_raw = row[0]
+                code_raw = row[1]
+                con_raw = row[2] if len(row) > 2 else ''
+                ven = self.locator.norm(str(ven_raw))
+                con = self.locator.norm(str(con_raw or ''))
+                code = str(int(float(code_raw))) if pd.notna(code_raw) else ''
                 if ven:
                     vendor_lkp[(ven, con)] = code
                     if (ven, '') not in vendor_lkp:

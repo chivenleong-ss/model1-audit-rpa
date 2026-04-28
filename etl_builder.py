@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import pandas as pd
-import numpy as np
 import openpyxl
 from openpyxl.utils import get_column_letter
 from project_config import ZGD_PREFIX, RESEARCH_OFFSET_MAP
@@ -90,7 +89,7 @@ class IntermediateTableBuilder:
             offset_records = []
 
             # --- 核心逐行映射规则引擎 ---
-            for idx, row in df_calc.iterrows():
+            for idx, row in zip(df_calc.index, df_calc.to_dict('records')):
                 gl_text = _norm_text(row.get('总账科目长文本', ''))
                 gl_text_path = _path_text(gl_text)
                 gl_code = str(row.get('科目号', row.get('总账科目', '')))
@@ -219,7 +218,7 @@ class IntermediateTableBuilder:
                     amt = debit
 
                     if sub_cat == '安全生产-材料费' and amt != 0:
-                        offset_records.append(_build_negative_material_offset(row.to_dict(), amt, sub_cat))
+                        offset_records.append(_build_negative_material_offset(row, amt, sub_cat))
 
                 # 5. 研发费用
                 elif ('研发支出' in gl_text_path) or ('研发费用' in gl_text_path):
@@ -247,7 +246,7 @@ class IntermediateTableBuilder:
                             sub_cat = '研发费用-其他'
 
                     if offset_cat and offset_subcat and amt != 0:
-                        offset_row = row.to_dict()
+                        offset_row = dict(row)
                         offset_row['成本_财务大类'] = offset_cat
                         offset_row['细分科目'] = offset_subcat
                         offset_row['客商名称'] = offset_subcat
@@ -331,16 +330,14 @@ class IntermediateTableBuilder:
 
             df_valid['客商名称'] = existing_name.combine_first(vendor).combine_first(customer)
 
-            def _fallback_vendor_name(row):
-                vendor = row.get('客商名称')
-                if pd.notna(vendor) and str(vendor).strip() != '':
-                    return vendor
-                doc_no = str(row.get('中台单据号', '') or '').strip()
-                if doc_no and doc_no.lower() not in ('nan', 'none'):
-                    return doc_no[:3].upper()
-                return ''
-
-            df_valid['客商名称'] = df_valid.apply(_fallback_vendor_name, axis=1)
+            doc_series = (
+                df_valid['中台单据号']
+                if '中台单据号' in df_valid.columns
+                else pd.Series('', index=df_valid.index, dtype='object')
+            )
+            doc_prefix = doc_series.astype(str).str.strip().replace(['nan', 'None'], '').str[:3].str.upper()
+            df_valid['客商名称'] = df_valid['客商名称'].fillna('').astype(str).str.strip().replace(['nan', 'None'], '')
+            df_valid['客商名称'] = df_valid['客商名称'].where(df_valid['客商名称'] != '', doc_prefix)
             df_valid['工程名称'] = df_valid.get('利润中心文本描述', '').astype(str).replace('nan', '')
             df_valid['项目编码'] = df_valid.get('WBS元素', '').astype(str).replace('nan', '')
             df_valid['合同编码'] = df_valid.get('合同', df_valid.get('合同编码', '')).astype(str).replace('nan', '')

@@ -259,6 +259,33 @@ class ExcelBeautifier:
         if found:
             self.log.info("   锚点行 O/P/Q/R 列公式重写 %d 行", found)
 
+    def _fix_fixed_amount_rows(self, ws):
+        """重写固定金额行的行内公式，避免删行后残留旧行号。"""
+        keywords = [
+            '四、计提保修金',
+            '五、过程节点奖金',
+            '六、资金占用费用',
+            '七、局投资收益',
+            '十、增值税实际税负',
+            '十一、税金及附加',
+        ]
+        COL_J, COL_L = 10, 12
+        COL_O, COL_P, COL_Q, COL_R = 15, 16, 17, 18
+        fixed = 0
+        for kw in keywords:
+            r = self._find_row(ws, kw)
+            if not r:
+                continue
+            ws.cell(r, COL_J).value = f"=H{r}+I{r}"
+            ws.cell(r, COL_L).value = f"=J{r}-K{r}"
+            ws.cell(r, COL_O).value = f"=L{r}-M{r}"
+            ws.cell(r, COL_P).value = f"=K{r}-N{r}"
+            ws.cell(r, COL_Q).value = f"=M{r}+O{r}"
+            ws.cell(r, COL_R).value = f"=M{r}+N{r}+O{r}+P{r}"
+            fixed += 1
+        if fixed:
+            self.log.info("   固定金额行 O/P/Q/R 列公式重写 %d 行", fixed)
+
     def _fix_nine_formula(self, ws):
         """
         强制重写九、成本及费用合计公式，基于当前实际行号，
@@ -282,6 +309,35 @@ class ExcelBeautifier:
             cl = get_column_letter(col_idx)
             ws.cell(r_nine, col_idx).value = '=' + '+'.join(f'{cl}{r}' for r in safe_rows)
         self.log.info("   九、成本及费用合计 强制重写（行%d，引用%s）", r_nine, safe_rows)
+
+    def _fix_cost_total_formula(self, ws):
+        """
+        强制重写三、成本合计，避免把自身行纳入求和而形成循环引用。
+        """
+        subtotal_keywords = [
+            '人工费小计',
+            '分包工程小计',
+            '材料费小计',
+            '机械费小计',
+            '其他直接费小计',
+            '间接费小计',
+            '安全费小计',
+        ]
+        r_cost = self._find_row(ws, '三、成本合计')
+        if not r_cost:
+            return
+        refs = []
+        for kw in subtotal_keywords:
+            r = self._find_row(ws, kw)
+            if r and r != r_cost:
+                refs.append(r)
+        if not refs:
+            self.log.warning("   未能定位成本节小计，跳过三、成本合计重写")
+            return
+        for col_idx in range(8, ws.max_column + 1):
+            cl = get_column_letter(col_idx)
+            ws.cell(r_cost, col_idx).value = '=' + '+'.join(f'{cl}{r}' for r in refs)
+        self.log.info("   三、成本合计 强制重写（行%d，引用%s）", r_cost, refs)
 
     def _fix_profit_formulas(self, ws):
         """强制重写十二利润、十三利润率公式"""
@@ -358,6 +414,41 @@ class ExcelBeautifier:
                 fixed += 1
         if fixed:
             self.log.info("   明细行 O/P/Q/R 列公式重写 %d 行（确保行号正确）", fixed)
+
+    def _normalize_row_arithmetic_formulas(self, ws):
+        """
+        对仍然残留旧行号的 J/L/O/P/Q/R 行内公式做统一归正。
+        只处理当前已经存在这些公式痕迹的行，避免误伤纯空白区域。
+        """
+        protected_rows = {
+            self._find_row(ws, '三、成本合计'),
+            self._find_row(ws, '九、成本及费用合计'),
+            self._find_row(ws, '十、增值税实际税负'),
+            self._find_row(ws, '十一、税金及附加'),
+            self._find_row(ws, '十二、利润'),
+            self._find_row(ws, '十三、利润率'),
+        }
+        protected_rows = {r for r in protected_rows if r}
+        target_cols = (10, 12, 15, 16, 17, 18)
+        fixed = 0
+        for r in range(7, ws.max_row + 1):
+            if r in protected_rows:
+                continue
+            has_formula_trace = any(
+                isinstance(ws.cell(r, c).value, str) and ws.cell(r, c).value.startswith('=')
+                for c in target_cols
+            )
+            if not has_formula_trace:
+                continue
+            ws.cell(r, 10).value = f'=H{r}+I{r}'
+            ws.cell(r, 12).value = f'=J{r}-K{r}'
+            ws.cell(r, 15).value = f'=L{r}-M{r}'
+            ws.cell(r, 16).value = f'=K{r}-N{r}'
+            ws.cell(r, 17).value = f'=M{r}+O{r}'
+            ws.cell(r, 18).value = f'=M{r}+N{r}+O{r}+P{r}'
+            fixed += 1
+        if fixed:
+            self.log.info("   行内公式归正 %d 行（清理残留旧行号）", fixed)
 
     def _clean_circular_refs(self, ws):
         """
@@ -528,7 +619,10 @@ class ExcelBeautifier:
         self._fix_cost_section_sums(ws)       # 强制重写1-7节 SUM + O/P/Q/R
         self._fix_yanfa_sum(ws)               # 强制重写研发 SUM
         self._fix_anchor_rows(ws)             # 强制重写锚点行 O/P/Q/R
+        self._fix_fixed_amount_rows(ws)       # 强制重写固定金额行 O/P/Q/R
+        self._fix_cost_total_formula(ws)      # 强制重写三、成本合计
         self._rewrite_detail_row_formulas(ws) # 强制重写所有明细行 O/P/Q/R
+        self._normalize_row_arithmetic_formulas(ws) # 清理删行后残留的旧行号
         self._fix_nine_formula(ws)            # 强制重写九合计
         self._fix_profit_formulas(ws)         # 强制重写十二利润/十三利润率
         self._clean_circular_refs(ws)         # 兜底纯自引用
