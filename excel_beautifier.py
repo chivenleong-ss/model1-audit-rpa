@@ -187,23 +187,12 @@ class ExcelBeautifier:
             for col_idx in range(1, ws.max_column + 1):
                 cell = ws.cell(sub, col_idx)
                 cl = get_column_letter(col_idx)
-                if col_idx == 13:  # M 列 — 数值主列
+                if col_idx >= 8:  # 小计行所有业务数字列均对明细区域求和，避免行内自引用
                     cell.value = f"=SUM({cl}{start_row}:{cl}{end_row})"
-                    cell.number_format = '#,##0.00' if cell.number_format == 'General' else cell.number_format
+                    if col_idx == 13:
+                        cell.number_format = '#,##0.00' if cell.number_format == 'General' else cell.number_format
                     fixed += 1
-                elif col_idx in (COL_O,):  # O 列
-                    cell.value = f"=L{sub}-M{sub}"
-                    fixed += 1
-                elif col_idx == COL_P:  # P 列
-                    cell.value = f"=K{sub}-N{sub}"
-                    fixed += 1
-                elif col_idx == COL_Q:  # Q 列
-                    cell.value = f"=M{sub}+O{sub}"
-                    fixed += 1
-                elif col_idx == COL_R:  # R 列
-                    cell.value = f"=M{sub}+N{sub}+O{sub}+P{sub}"
-                    fixed += 1
-            self.log.info("   %-12s SUM 强制重写 行%d = SUM(%d:%d) 并重写 O/P/Q/R", sub_kw, sub, start_row, end_row)
+            self.log.info("   %-12s SUM 强制重写 行%d = SUM(%d:%d)，小计行不再使用行内运算", sub_kw, sub, start_row, end_row)
         if not fixed:
             self.log.info("   未找到成本节小计行，跳过 SUM 重写")
 
@@ -235,12 +224,9 @@ class ExcelBeautifier:
 
     def _fix_anchor_rows(self, ws):
         """
-        重写所有锚点行（“财务未列部分需增列”）的 O/P/Q/R 列公式，
-        确保不引用自身行（已在 _fix_cost_section_sums 中处理）。
-        此函数额外确保锚点行的公式安全。
+        清空锚点行（“财务未列部分需增列”）的行内公式列，
+        避免这些占位行出现自引用或被误识别为有效计算行。
         """
-        COL_J, COL_K, COL_L, COL_N = 10, 11, 12, 14
-        COL_O, COL_P, COL_Q, COL_R = 15, 16, 17, 18
         found = 0
         for r in range(7, ws.max_row + 1):
             found_anchor = False
@@ -250,14 +236,11 @@ class ExcelBeautifier:
                     break
             if not found_anchor:
                 continue
-            # 重写 O/P/Q/R 列
-            ws.cell(r, COL_O).value = f"=L{r}-M{r}"
-            ws.cell(r, COL_P).value = f"=K{r}-N{r}"
-            ws.cell(r, COL_Q).value = f"=M{r}+O{r}"
-            ws.cell(r, COL_R).value = f"=M{r}+N{r}+O{r}+P{r}"
+            for col in (8, 9, 10, 11, 12, 14, 15, 16, 17, 18):
+                ws.cell(r, col).value = None
             found += 1
         if found:
-            self.log.info("   锚点行 O/P/Q/R 列公式重写 %d 行", found)
+            self.log.info("   锚点行公式清空 %d 行", found)
 
     def _fix_fixed_amount_rows(self, ws):
         """重写固定金额行的行内公式，避免删行后残留旧行号。"""
@@ -276,6 +259,11 @@ class ExcelBeautifier:
             r = self._find_row(ws, kw)
             if not r:
                 continue
+            if kw != '十一、税金及附加':
+                ws.cell(r, 8).value = f"=SUM(H{r-1}:H{r-1})"
+                ws.cell(r, 9).value = f"=SUM(I{r-1}:I{r-1})"
+                ws.cell(r, 11).value = f"=SUM(K{r-1}:K{r-1})"
+                ws.cell(r, 14).value = f"=SUM(N{r-1}:N{r-1})"
             ws.cell(r, COL_J).value = f"=H{r}+I{r}"
             ws.cell(r, COL_L).value = f"=J{r}-K{r}"
             ws.cell(r, COL_O).value = f"=L{r}-M{r}"
@@ -420,6 +408,10 @@ class ExcelBeautifier:
         对仍然残留旧行号的 J/L/O/P/Q/R 行内公式做统一归正。
         只处理当前已经存在这些公式痕迹的行，避免误伤纯空白区域。
         """
+        subtotal_keywords = [
+            '人工费小计', '分包工程小计', '材料费小计', '机械费小计',
+            '其他直接费小计', '间接费小计', '安全费小计',
+        ]
         protected_rows = {
             self._find_row(ws, '三、成本合计'),
             self._find_row(ws, '九、成本及费用合计'),
@@ -428,6 +420,7 @@ class ExcelBeautifier:
             self._find_row(ws, '十二、利润'),
             self._find_row(ws, '十三、利润率'),
         }
+        protected_rows.update(self._find_row(ws, kw) for kw in subtotal_keywords)
         protected_rows = {r for r in protected_rows if r}
         target_cols = (10, 12, 15, 16, 17, 18)
         fixed = 0
@@ -439,6 +432,9 @@ class ExcelBeautifier:
                 for c in target_cols
             )
             if not has_formula_trace:
+                continue
+            d_norm = self._norm(str(ws.cell(r, 4).value or ''))
+            if '财务未列部分需增列' in d_norm:
                 continue
             ws.cell(r, 10).value = f'=H{r}+I{r}'
             ws.cell(r, 12).value = f'=J{r}-K{r}'
@@ -470,11 +466,8 @@ class ExcelBeautifier:
                     continue
                 # 非 SUM 公式中包含自身单元格地址
                 if "SUM(" not in formula_upper and self_ref in formula_upper:
-                    test = re.sub(re.escape(self_ref), " ", formula_upper).replace("= ", "=").strip()
-                    stripped = re.sub(r"[\s\+\-\*/()0-9\.%]", "", test)
-                    if stripped == "":
-                        cell.value = 0
-                        cleared += 1
+                    cell.value = 0
+                    cleared += 1
         if cleared:
             self.log.info("   兜底清理自引用 %d 个", cleared)
 
@@ -636,8 +629,14 @@ class ExcelBeautifier:
         self._apply_borders(ws)
 
     def _save_workbook(self, wb):
-        wb.save(self.output_path)
-        self.log.info("交付版生成完成：%s", self.output_path)
+        try:
+            wb.save(self.output_path)
+            self.log.info("交付版生成完成：%s", self.output_path)
+        except PermissionError:
+            alt_path = self.output_path.replace(".xlsx", "_修复版.xlsx")
+            wb.save(alt_path)
+            self.output_path = alt_path
+            self.log.warning("原交付版文件被占用，已另存为：%s", alt_path)
 
     def execute_beautify(self):
         if not os.path.exists(self.input_path):
