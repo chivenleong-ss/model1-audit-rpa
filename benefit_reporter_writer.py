@@ -45,6 +45,14 @@ class BenefitSheetWriter:
         self.log = logger
         self.locator = locator
 
+
+    @staticmethod
+    def _set_value(ws, row: int, col: int, value):
+        if row <= 10:
+            return False
+        ws.cell(row, col).value = value
+        return True
+
     @staticmethod
     def copy_fill(src_cell, dst_cell):
         try:
@@ -86,26 +94,28 @@ class BenefitSheetWriter:
     def write_row(self, ws, row_num, d_val, c_val, m_val, extended, skip_fill=False):
         self.style_row(ws, row_num, skip_fill=skip_fill)
         if d_val:
-            ws.cell(row_num, COL_D).value = str(d_val)
+            self._set_value(ws, row_num, COL_D, str(d_val))
         if c_val:
-            ws.cell(row_num, COL_C).value = str(c_val)
+            self._set_value(ws, row_num, COL_C, str(c_val))
         if m_val is not None:
             cell = ws.cell(row_num, COL_M)
-            cell.value = round(float(m_val), 2)
+            self._set_value(ws, row_num, COL_M, round(float(m_val), 2))
             cell.number_format = '#,##0.00'
         for col, formula in self.row_formulas(row_num, extended).items():
-            ws.cell(row_num, col).value = formula
+            self._set_value(ws, row_num, col, formula)
 
     def delete_stubs(self, ws, hdr_row: int, anchor_row: int):
         protected = {self.locator.norm(k) for k in self._KEEP_ROW_KEYWORDS}
         to_delete = []
         for row in range(hdr_row + 1, anchor_row):
+            c_val = ws.cell(row, COL_C).value
             d_val = ws.cell(row, COL_D).value
             m_val = ws.cell(row, COL_M).value
             if isinstance(m_val, (int, float)):
                 continue
+            c_norm = self.locator.norm(str(c_val or ''))
             d_norm = self.locator.norm(str(d_val or ''))
-            if any(key in d_norm for key in protected):
+            if any(key in c_norm or key in d_norm for key in protected):
                 continue
             to_delete.append(row)
         for row in reversed(to_delete):
@@ -150,11 +160,33 @@ class BenefitSheetWriter:
         self.locator.clear_cache()
         self.log.info("   已自动补插材料费固定行: %s", "、".join(missing))
 
+    def ensure_material_group_headers(self, ws) -> None:
+        hdr_row = self.locator.find_row(ws, '(三)材料费')
+        subtotal_row = self.locator.find_row(ws, '材料费小计')
+        if not hdr_row or not subtotal_row or subtotal_row <= hdr_row:
+            return
+
+        labels = ['（1）集中采购', '（2）自行采购']
+        inserted = []
+        insert_at = hdr_row + 1
+        for label in labels:
+            if self.locator.find_row(ws, label, cols=(3, 4)):
+                continue
+            ws.insert_rows(insert_at)
+            self.style_row(ws, insert_at)
+            self._set_value(ws, insert_at, COL_D, label)
+            inserted.append(label)
+            insert_at += 1
+
+        if inserted:
+            self.locator.clear_cache()
+            self.log.info("   已自动补插材料费分组标题: %s", "、".join(inserted))
+
     def fix_stale_self_refs(self, ws):
         skip_words = {'成本合计', '成本及费用合计', '利润', '增值税实际税负', '税金及附加'}
         target_cols = {COL_J, COL_L, COL_O, COL_P, COL_Q, COL_R, COL_S}
 
-        for row in range(10, ws.max_row + 1):
+        for row in range(11, ws.max_row + 1):
             d_val = self.locator.norm(str(ws.cell(row, COL_D).value or ''))
             if any(word in d_val for word in skip_words):
                 continue
@@ -168,7 +200,7 @@ class BenefitSheetWriter:
                     if matched:
                         old_row = int(matched.group(1))
                         if old_row != row:
-                            cell.value = f'=SUM(T{row}:V{row})'
+                            self._set_value(ws, row, cell.column, f'=SUM(T{row}:V{row})')
                     continue
                 nums = [int(num) for num in re.findall(r'(?<=[A-Za-z])(\d+)', formula)]
                 if not nums:
@@ -177,7 +209,7 @@ class BenefitSheetWriter:
                 if len(unique) == 1:
                     old_row = unique.pop()
                     if old_row != row and old_row > 5:
-                        cell.value = re.sub(r'(?<=[A-Za-z])' + str(old_row) + r'(?!\d)', str(row), formula)
+                        self._set_value(ws, row, cell.column, re.sub(r'(?<=[A-Za-z])' + str(old_row) + r'(?!\d)', str(row), formula))
 
 
     def fix_all_sums(self, ws):
@@ -199,32 +231,35 @@ class BenefitSheetWriter:
                         break
                 if anchor:
                     break
-            end_row = anchor if anchor else sub_row - 1
+            end_row = (anchor - 1) if anchor else sub_row - 1
+            if end_row >= sub_row:
+                end_row = sub_row - 1
 
-            for col in range(COL_H, ws.max_column + 1):
+            start_row = hdr_row + 1
+            for col in range(COL_H, COL_S):
                 cell = ws.cell(sub_row, col)
                 col_letter = get_column_letter(col)
-                cell.value = f'=SUM({col_letter}{hdr_row}:{col_letter}{end_row})'
+                self._set_value(ws, sub_row, col, f'=SUM({col_letter}{start_row}:{col_letter}{end_row})')
                 if col == COL_M and cell.number_format == 'General':
                     cell.number_format = '#,##0.00'
 
-            ws.cell(sub_row, COL_J).value = f'=H{sub_row}+I{sub_row}'
-            ws.cell(sub_row, COL_L).value = f'=J{sub_row}-K{sub_row}'
-            ws.cell(sub_row, COL_O).value = f'=L{sub_row}-M{sub_row}'
-            ws.cell(sub_row, COL_P).value = f'=K{sub_row}-N{sub_row}'
-            ws.cell(sub_row, COL_Q).value = f'=M{sub_row}+O{sub_row}'
-            ws.cell(sub_row, COL_R).value = f'=M{sub_row}+N{sub_row}+O{sub_row}+P{sub_row}'
+            self._set_value(ws, sub_row, COL_J, f'=H{sub_row}+I{sub_row}')
+            self._set_value(ws, sub_row, COL_L, f'=J{sub_row}-K{sub_row}')
+            self._set_value(ws, sub_row, COL_O, f'=L{sub_row}-M{sub_row}')
+            self._set_value(ws, sub_row, COL_P, f'=K{sub_row}-N{sub_row}')
+            self._set_value(ws, sub_row, COL_Q, f'=M{sub_row}+O{sub_row}')
+            self._set_value(ws, sub_row, COL_R, f'=M{sub_row}+N{sub_row}+O{sub_row}+P{sub_row}')
 
             if anchor:
-                ws.cell(anchor, COL_J).value = f'=H{anchor}+I{anchor}'
-                ws.cell(anchor, COL_L).value = f'=J{anchor}-K{anchor}'
-                ws.cell(anchor, COL_O).value = f'=L{anchor}-M{anchor}'
-                ws.cell(anchor, COL_P).value = f'=K{anchor}-N{anchor}'
-                ws.cell(anchor, COL_Q).value = f'=M{anchor}+O{anchor}'
-                ws.cell(anchor, COL_R).value = f'=M{anchor}+N{anchor}+O{anchor}+P{anchor}'
+                self._set_value(ws, anchor, COL_J, f'=H{anchor}+I{anchor}')
+                self._set_value(ws, anchor, COL_L, f'=J{anchor}-K{anchor}')
+                self._set_value(ws, anchor, COL_O, f'=L{anchor}-M{anchor}')
+                self._set_value(ws, anchor, COL_P, f'=K{anchor}-N{anchor}')
+                self._set_value(ws, anchor, COL_Q, f'=M{anchor}+O{anchor}')
+                self._set_value(ws, anchor, COL_R, f'=M{anchor}+N{anchor}+O{anchor}+P{anchor}')
 
-            self.log.info("   🧮 %-14s SUM 全部列重写 行%d→%d；O/P/Q/R 行内运算重写",
-                         sub_kw, hdr_row, end_row)
+            self.log.info("   🧮 %-14s H:R 重写 行%d→%d；S列以后保持模板原样",
+                         sub_kw, start_row, end_row)
 
     def fix_aggregate_rows(self, ws):
         """
@@ -240,9 +275,9 @@ class BenefitSheetWriter:
                 if r and r != cost_total_row:
                     refs.append(r)
             if len(refs) == 7:
-                for col in range(COL_H, ws.max_column + 1):
+                for col in range(COL_H, COL_S):
                     cl = get_column_letter(col)
-                    ws.cell(cost_total_row, col).value = '=' + '+'.join(f'{cl}{r}' for r in refs)
+                    self._set_value(ws, cost_total_row, col, '=' + '+'.join(f'{cl}{r}' for r in refs))
                 self.log.info("   🧮 三、成本合计 强制重写 行%d", cost_total_row)
 
         r_yanfa = self.locator.find_row(ws, '八、研发费用')
@@ -253,26 +288,26 @@ class BenefitSheetWriter:
                 end_row = r_nine - 1
                 if end_row < start_row:
                     end_row = start_row
-                for col in range(COL_H, ws.max_column + 1):
+                for col in range(COL_H, COL_S):
                     cl = get_column_letter(col)
-                    ws.cell(r_yanfa, col).value = f'=SUM({cl}{start_row}:{cl}{end_row})'
-                ws.cell(r_yanfa, COL_J).value = f'=H{r_yanfa}+I{r_yanfa}'
-                ws.cell(r_yanfa, COL_L).value = f'=J{r_yanfa}-K{r_yanfa}'
-                ws.cell(r_yanfa, COL_O).value = f'=L{r_yanfa}-M{r_yanfa}'
-                ws.cell(r_yanfa, COL_P).value = f'=K{r_yanfa}-N{r_yanfa}'
-                ws.cell(r_yanfa, COL_Q).value = f'=M{r_yanfa}+O{r_yanfa}'
-                ws.cell(r_yanfa, COL_R).value = f'=M{r_yanfa}+N{r_yanfa}+O{r_yanfa}+P{r_yanfa}'
+                    self._set_value(ws, r_yanfa, col, f'=SUM({cl}{start_row}:{cl}{end_row})')
+                self._set_value(ws, r_yanfa, COL_J, f'=H{r_yanfa}+I{r_yanfa}')
+                self._set_value(ws, r_yanfa, COL_L, f'=J{r_yanfa}-K{r_yanfa}')
+                self._set_value(ws, r_yanfa, COL_O, f'=L{r_yanfa}-M{r_yanfa}')
+                self._set_value(ws, r_yanfa, COL_P, f'=K{r_yanfa}-N{r_yanfa}')
+                self._set_value(ws, r_yanfa, COL_Q, f'=M{r_yanfa}+O{r_yanfa}')
+                self._set_value(ws, r_yanfa, COL_R, f'=M{r_yanfa}+N{r_yanfa}+O{r_yanfa}+P{r_yanfa}')
                 self.log.info("   🧮 八、研发费用 强制重写 行%d", r_yanfa)
 
         for kw in ['四、计提保修金', '五、过程节点奖金', '六、资金占用费用', '七、局投资收益']:
             r = self.locator.find_row(ws, kw)
             if r:
-                ws.cell(r, COL_J).value = f'=H{r}+I{r}'
-                ws.cell(r, COL_L).value = f'=J{r}-K{r}'
-                ws.cell(r, COL_O).value = f'=L{r}-M{r}'
-                ws.cell(r, COL_P).value = f'=K{r}-N{r}'
-                ws.cell(r, COL_Q).value = f'=M{r}+O{r}'
-                ws.cell(r, COL_R).value = f'=M{r}+N{r}+O{r}+P{r}'
+                self._set_value(ws, r, COL_J, f'=H{r}+I{r}')
+                self._set_value(ws, r, COL_L, f'=J{r}-K{r}')
+                self._set_value(ws, r, COL_O, f'=L{r}-M{r}')
+                self._set_value(ws, r, COL_P, f'=K{r}-N{r}')
+                self._set_value(ws, r, COL_Q, f'=M{r}+O{r}')
+                self._set_value(ws, r, COL_R, f'=M{r}+N{r}+O{r}+P{r}')
 
         total_row = self.locator.find_row(ws, '八、成本及费用合计') or self.locator.find_row(ws, '九、成本及费用合计')
         if total_row and cost_total_row:
@@ -283,9 +318,9 @@ class BenefitSheetWriter:
                 if r and r != total_row:
                     related_rows.append(r)
             if related_rows:
-                for col in range(COL_H, ws.max_column + 1):
+                for col in range(COL_H, COL_S):
                     cl = get_column_letter(col)
-                    ws.cell(total_row, col).value = '=' + '+'.join(f'{cl}{r}' for r in related_rows)
+                    self._set_value(ws, total_row, col, '=' + '+'.join(f'{cl}{r}' for r in related_rows))
                 self.log.info("   🧮 成本及费用合计 强制重写 行%d", total_row)
 
     def build_lookups(self, df4):
@@ -338,7 +373,7 @@ class BenefitSheetWriter:
             '间接费小计', '安全费小计', '财务未列部分需增列', '成本合计', '项目效益',
             '成本及费用合计', '增值税', '税金及附加', '利润', '保修金', '节点奖'
         }
-        for row in range(10, ws.max_row + 1):
+        for row in range(11, ws.max_row + 1):
             d_val = ws.cell(row, COL_D).value
             m_val = ws.cell(row, COL_M).value
             c_val = ws.cell(row, COL_C).value
@@ -360,16 +395,16 @@ class BenefitSheetWriter:
                     log_debug("未匹配到供应商编码：行%d D='%s' C='%s'", row, d_val, c_val)
 
             if code:
-                ws.cell(row, COL_B).value = code
+                self._set_value(ws, row, COL_B, code)
                 pay = pay_lkp.get((code, c_norm), 0)
                 if pay:
                     cell = ws.cell(row, COL_T)
-                    cell.value = round(float(pay), 2)
+                    self._set_value(ws, row, COL_T, round(float(pay), 2))
                     cell.number_format = '#,##0.00'
                 vat = vat_lkp.get((code, c_norm), 0)
                 if vat:
                     cell = ws.cell(row, COL_N)
-                    cell.value = round(float(vat), 2)
+                    self._set_value(ws, row, COL_N, round(float(vat), 2))
                     cell.number_format = '#,##0.00'
 
     def apply_invoice_match(self, ws, result_dir: str, invoice_ledger_path: str | None):
@@ -414,11 +449,11 @@ class BenefitSheetWriter:
                     break
             end = (anchor - 1) if anchor else (sub - 1)
             for row in range(hdr + 1, sub):
-                ws.cell(row, COL_A).value = None
+                self._set_value(ws, row, COL_A, None)
             seq = 1
             for row in range(hdr + 1, end + 1):
                 d_val = ws.cell(row, COL_D).value
                 m_val = ws.cell(row, COL_M).value
                 if d_val and isinstance(m_val, (int, float)) and m_val != 0:
-                    ws.cell(row, COL_A).value = seq
+                    self._set_value(ws, row, COL_A, seq)
                     seq += 1

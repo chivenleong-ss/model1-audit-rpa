@@ -44,19 +44,25 @@ class IntermediateTableBuilder:
                         '原材料\\辅材' in path_text or
                         '原材料\\材主' in path_text)
 
+            # 【修复 1】去掉 abs()，防止正负冲销时出现负数翻倍
             def _build_negative_material_offset(row_dict: dict, amount: float, subcat: str) -> dict:
                 offset_row = dict(row_dict)
                 offset_row['成本_财务大类'] = '(三)材料费'
                 offset_row['细分科目'] = subcat
                 offset_row['客商名称'] = subcat
                 offset_row['合同编码'] = ''
-                offset_row['最终发生额'] = -abs(amount)
+                offset_row['最终发生额'] = -amount
                 return offset_row
 
             df_calc = df.copy()
             df_calc['成本_财务大类'] = None
             df_calc['细分科目'] = None
             df_calc['最终发生额'] = 0.0
+
+            if '客商名称' not in df_calc.columns:
+                df_calc['客商名称'] = ''
+            if '合同编码' not in df_calc.columns:
+                df_calc['合同编码'] = df_calc.get('合同', '')
 
             # ========================================================
             # 【前置动作】构建雷达字典
@@ -78,7 +84,7 @@ class IntermediateTableBuilder:
                 doc_to_cost_subcat = {}
 
             # ========================================================
-            # 计算材料库存：原材料借方+贷方汇总，取负数
+            # 【修复 2】恢复材料库存的原始逻辑
             # ========================================================
             mat_mask = df_calc['总账科目长文本'].astype(str).str.contains('原材料', na=False)
             mat_debit_sum = pd.to_numeric(df_calc.loc[mat_mask, '借方本位币金额'], errors='coerce').fillna(0).sum()
@@ -118,26 +124,25 @@ class IntermediateTableBuilder:
                 elif '分包工程支出' in gl_text_path:
                     cat, amt = '(二)分包工程', debit
 
-                # ====================================================
-                # 材料费规则重写（覆盖所有情况）
-                # ====================================================
                 elif '原材料' in gl_text_path:
-                    # 1. 普通材料费：原材料/xx，合同不为空且单据为 JSD 起始
                     if contract != '' and doc_no.startswith('JSD'):
                         cat, amt = '(三)材料费', debit
-                    # 2. 材料调入：原材料/xx，对方科目为内部存款/内部往来，单据为 DBD
                     elif doc_no.startswith('DBD') and _has_internal_counterparty(opp_gl_text_path):
                         cat, sub_cat, amt = '(三)材料费', '材料调入', debit
-                    # 8/9. 原材料主材/辅材/材主，按单据区分 XSD、SQD
                     elif _is_main_or_aux_material(gl_text_path) and doc_no.startswith('XSD'):
-                        cat, sub_cat, amt = '(三)材料费', '材料调出+XSD', -credit  # 贷方金额冲减，取负数
+                        cat, sub_cat, amt = '(三)材料费', '材料调出+XSD', -credit
                     elif _is_main_or_aux_material(gl_text_path) and doc_no.startswith('SQD'):
-                        cat, sub_cat, amt = '(三)材料费', '材料调出+SQD', -credit  # 贷方金额冲减，取负数
+                        cat, sub_cat, amt = '(三)材料费', '材料调出+SQD', -credit
 
                 elif '合同履约成本\\工程施工成本\\直接材料费' in gl_text_path:
-                    # 5/8. 材料调入+CFK：对方科目为 其他应收款\内部存款\可用，且单据为 CFK
+                    # 1. 如果包含其他应收款的 CFK
                     if doc_no.startswith('CFK') and _has_cfk_counterparty(opp_gl_text_path):
-                        cat, sub_cat, amt = '(三)材料费', '材料调入+CFK', debit
+                        cat, sub_cat, amt = '(三)材料费', '其他应收+CFK', debit
+                    
+                    # 🌟【修复 3】补充漏写的elif：对方科目仅包含内部存款/内部往来的 CFK
+                    elif doc_no.startswith('CFK') and _has_internal_counterparty(opp_gl_text_path):
+                        cat, sub_cat, amt = '(三)材料费', '内部存款/内部往来+CFK', debit
+                    
                     # 3. 材料调出：直接材料费，对方科目为内部存款/内部往来，单据为 DBD
                     elif doc_no.startswith('DBD') and _has_internal_counterparty(opp_gl_text_path):
                         cat, sub_cat, amt = '(三)材料费', '材料调出', debit
@@ -146,10 +151,11 @@ class IntermediateTableBuilder:
                         cat, sub_cat, amt = '(三)材料费', '废旧物资消耗', debit
                     elif doc_no.startswith('SQD') and _is_blank_text(opp_gl_text):
                         cat, sub_cat, amt = '(三)材料费', '废旧物资消耗（SQD）', debit
-                    # 7. 材料费-其他：直接材料费，对方科目为内部存款/内部往来，且单据不为 DBD/CFK
+                    elif doc_no.startswith('TBX'):
+                        cat, sub_cat, amt = '(三)材料费', 'TBX', debit
+                    # 7. 材料费-其他：兜底
                     elif (not doc_no.startswith('DBD')) and (not doc_no.startswith('CFK')) and _has_internal_counterparty(opp_gl_text_path):
                         cat, sub_cat, amt = '(三)材料费', '其他', debit
-                    # 兜底兼容（JSD可能落在履约成本的情形）
                     elif contract != '' and doc_no.startswith('JSD'):
                         cat, amt = '(三)材料费', debit
 
@@ -266,7 +272,7 @@ class IntermediateTableBuilder:
 
                 # --- ZGD 单据统一追加前缀 ---
                 if doc_no.upper().startswith(ZGD_PREFIX):
-                    if cat is not None:   # 仅在已分类时处理
+                    if cat is not None:
                         original_subcat = sub_cat if sub_cat else '未分类'
                         sub_cat = f"{ZGD_PREFIX}-{original_subcat}"
                         df_calc.at[idx, '客商名称'] = 'ZGD'

@@ -9,20 +9,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ink:#071727;
-  --navy:#10233f;
-  --blue:#1a57c0;
-  --cyan:#2b8bdc;
-  --mint:#0a7d54;
-  --mint-bg:#edf9f4;
-  --amber:#a66404;
-  --red:#c0392b;
-  --red-bg:#fff0ee;
-  --line:#cadcf0;
-  --muted:#536b87;
-  --panel:#ffffffd9;
-  --soft:#eef5ff;
-  font-family:"Noto Sans SC","Microsoft YaHei",sans-serif;
+  --ink:#071727; --navy:#10233f; --blue:#1a57c0; --cyan:#2b8bdc;
+  --mint:#0a7d54; --mint-bg:#edf9f4; --amber:#a66404; --red:#c0392b;
+  --red-bg:#fff0ee; --line:#cadcf0; --muted:#536b87; --panel:#ffffffd9;
+  --soft:#eef5ff; font-family:"Noto Sans SC","Microsoft YaHei",sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{
@@ -32,95 +22,103 @@ body{
     linear-gradient(220deg,rgba(10,125,84,.08),transparent 28%),
     #f5f8fc;
 }
-.top{
-  background:linear-gradient(145deg,#071827,#12345e 60%,#1f6fb2);
-  color:#fff;padding:28px 24px;box-shadow:0 16px 42px rgba(7,23,39,.16);
-}
+.top{background:linear-gradient(145deg,#071827,#12345e 60%,#1f6fb2);color:#fff;padding:28px 24px;box-shadow:0 16px 42px rgba(7,23,39,.16);}
 .top-in{max-width:1040px;margin:auto;display:flex;align-items:center;gap:16px}
-.logo{
-  width:48px;height:48px;border-radius:12px;display:grid;place-items:center;
-  background:linear-gradient(135deg,#2b8bdc,#5db8e8);font-size:24px;font-weight:700;
-}
+.logo{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#2b8bdc,#5db8e8);font-size:24px;font-weight:700;}
 h1{font-size:1.24rem;letter-spacing:0;font-weight:700}
 .top p{font-size:.78rem;color:rgba(255,255,255,.68);margin-top:4px}
 .badge{margin-left:auto;font-size:.72rem;border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:6px 12px;color:rgba(255,255,255,.72)}
 main{max-width:1040px;margin:auto;padding:30px 20px 76px}
 .steps{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px}
-.step{
-  background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;
-  display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.78rem;
-}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.78rem;}
 .num{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--soft);font-weight:700}
-.step.active{border-color:#82b8ef;color:var(--blue)}
-.step.active .num{background:var(--blue);color:#fff}
-.step.done{color:var(--mint)}
-.step.done .num{background:var(--mint);color:#fff}
-.card{
-  background:var(--panel);border:1px solid var(--line);border-radius:12px;
-  padding:24px;margin-bottom:16px;box-shadow:0 12px 32px rgba(16,35,63,.07);
-}
+.step.active{border-color:#82b8ef;color:var(--blue)}.step.active .num{background:var(--blue);color:#fff}
+.step.done{color:var(--mint)}.step.done .num{background:var(--mint);color:#fff}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px;margin-bottom:16px;box-shadow:0 12px 32px rgba(16,35,63,.07);}
 .ctitle{font-size:.75rem;font-weight:700;color:var(--muted);letter-spacing:.8px;margin-bottom:16px}
-.drop{
-  border:2px dashed var(--line);border-radius:12px;background:var(--soft);padding:30px 22px;
-  position:relative;text-align:center;transition:.18s;
-}
+.drop{border:2px dashed var(--line);border-radius:12px;background:var(--soft);padding:30px 22px;position:relative;text-align:center;transition:.18s;}
 .drop.over{border-color:var(--cyan);background:#e3f2ff}
 .drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .drop-title{font-size:1rem;font-weight:700}
 .drop-sub{font-size:.76rem;color:var(--muted);margin-top:8px}
 .file-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;margin-top:14px}
-.file-pill{
-  border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 10px;
-  font-size:.72rem;color:var(--muted);word-break:break-all;
-}
+.file-pill{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 10px;font-size:.72rem;color:var(--muted);word-break:break-all;}
 .runrow{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:18px}
 .hint{font-size:.74rem;color:var(--muted)}
-.btn{
-  border:0;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700;
-  display:inline-flex;align-items:center;gap:7px;transition:.18s;text-decoration:none;
-}
+.btn{border:0;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700;display:inline-flex;align-items:center;gap:7px;transition:.18s;text-decoration:none;}
 .btn-primary{background:linear-gradient(135deg,var(--blue),var(--cyan));color:#fff;padding:11px 22px;box-shadow:0 6px 18px rgba(26,87,192,.26)}
 .btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 22px rgba(26,87,192,.34)}
 .btn-secondary{background:#eef5ff;color:var(--blue);border:1px solid var(--line);padding:9px 14px;font-size:.76rem}
 .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
 .summary{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:.78rem;color:var(--muted)}
-.summary strong{color:var(--ink)}
 .groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
-.group-card{
-  background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;
-  display:flex;flex-direction:column;gap:12px;min-height:230px;
-}
+.group-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px; transition: 0.2s;}
 .group-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .pc{font-size:1rem;font-weight:800;color:var(--navy)}
 .status{font-size:.7rem;border-radius:999px;padding:4px 9px;background:var(--soft);color:var(--muted);white-space:nowrap}
 .status.ready{background:var(--mint-bg);color:var(--mint)}
 .status.running{background:#e8f2ff;color:var(--blue)}
-.status.done{background:var(--mint-bg);color:var(--mint)}
 .status.error{background:var(--red-bg);color:var(--red)}
 .status.queued{background:#fff7e8;color:var(--amber)}
-.files{display:flex;flex-direction:column;gap:6px}
-.file-row{font-size:.72rem;color:var(--muted);line-height:1.55}
-.file-row b{color:var(--ink)}
 .bar{height:6px;background:var(--soft);border-radius:999px;overflow:hidden}
 .fill{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--cyan));transition:width .35s}
-.logs{
-  display:none;max-height:140px;overflow:auto;background:#f7fbff;border:1px solid var(--line);
-  border-radius:8px;padding:9px 10px;font-size:.68rem;line-height:1.7;color:var(--muted);
-  font-family:Consolas,"Microsoft YaHei",monospace;white-space:pre-wrap;
-}
-.logs.open{display:block}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
-.errorbox{
-  background:var(--red-bg);border:1px solid #f2c4c0;border-radius:8px;
-  color:var(--red);padding:9px 10px;font-size:.7rem;line-height:1.65;white-space:pre-wrap;
-}
+.errorbox{background:var(--red-bg);border:1px solid #f2c4c0;border-radius:8px;color:var(--red);padding:9px 10px;font-size:.7rem;line-height:1.65;white-space:pre-wrap;}
 .rejected{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
 .rejected-title{font-size:.73rem;font-weight:700;color:var(--amber);margin-bottom:8px}
 footer{text-align:center;color:var(--muted);font-size:.68rem;padding:22px}
-@media(max-width:660px){
-  .top-in{align-items:flex-start}.badge{display:none}.steps{grid-template-columns:1fr}
-  .card{padding:18px}.runrow{align-items:stretch;flex-direction:column}.btn-primary{justify-content:center}
+
+/* 三大板块样式 */
+.tab-nav { display: flex; border-bottom: 2px solid var(--line); margin-bottom: 20px; }
+.tab-btn { padding: 12px 24px; cursor: pointer; background: transparent; border: none; font-size: 16px; font-weight: 600; color: var(--muted); border-bottom: 3px solid transparent; transition: 0.2s; }
+.tab-btn:hover { color: var(--blue); }
+.tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.row-selected { border: 2px solid var(--mint) !important; background-color: var(--mint-bg) !important; box-shadow: 0 4px 12px rgba(10,125,84,0.1); }
+
+/* ======== 逐条审核动画 UI ======== */
+.audit-step {
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    transition: all 0.3s;
 }
+.audit-step.checking {
+    background: #eef5ff;
+    border-color: var(--cyan);
+    color: var(--blue);
+    animation: pulse 1.2s infinite;
+}
+.audit-step.pass {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+    color: var(--mint);
+}
+.audit-step.fail {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: var(--red);
+}
+.audit-step.warning {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: var(--amber);
+}
+.step-desc {
+    color: var(--muted);
+    margin-left: auto;
+    font-size: 0.75rem;
+}
+.audit-step.checking .step-desc { color: var(--blue); }
+@keyframes pulse { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
+.spinner { display: inline-block; animation: spin 1s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -136,288 +134,393 @@ footer{text-align:center;color:var(--muted);font-size:.68rem;padding:22px}
 </header>
 
 <main>
-  <div class="steps">
-    <div class="step active" id="step1"><span class="num">1</span><span>上传识别</span></div>
-    <div class="step" id="step2"><span class="num">2</span><span>串行处理</span></div>
-    <div class="step" id="step3"><span class="num">3</span><span>下载结果</span></div>
+  <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab(event, 'auto-fill')">自动填报</button>
+      <button class="tab-btn" onclick="switchTab(event, 'logic-audit')">逻辑审核</button>
+      <button class="tab-btn" onclick="switchTab(event, 'finance-check')">核算检查</button>
   </div>
 
-  <section class="card">
-    <div class="ctitle">批量上传</div>
-    <div class="drop" id="drop" ondragover="dragOver(event)" ondragleave="dragLeave()" ondrop="dropFiles(event)">
-      <input id="fileInput" type="file" multiple accept=".xlsx,.xls,.csv" onchange="pickFiles(event)">
-      <div class="drop-title">选择或拖入凭证、明细、发票文件</div>
-      <div class="drop-sub">系统会读取前 10 行，按利润中心编码自动分组</div>
-    </div>
-    <div class="file-list" id="fileList"></div>
-    <div class="runrow">
-      <span class="hint" id="uploadHint">请选择需要处理的文件</span>
-      <button class="btn btn-primary" id="previewBtn" onclick="previewBatch()" disabled>上传并识别分组</button>
-    </div>
-  </section>
+  <div id="auto-fill" class="tab-content active">
+      <div class="steps">
+        <div class="step active" id="step1"><span class="num">1</span><span>上传识别</span></div>
+        <div class="step" id="step2"><span class="num">2</span><span>串行处理</span></div>
+        <div class="step" id="step3"><span class="num">3</span><span>下载结果</span></div>
+      </div>
 
-  <section class="card" id="groupPanel" style="display:none">
-    <div class="ctitle">利润中心分组确认</div>
-    <div class="summary" id="summary"></div>
-    <div class="groups" id="groups"></div>
-    <div class="rejected" id="rejected" style="display:none"></div>
-    <div class="runrow">
-      <span class="hint" id="startHint">确认分组后开始处理全部</span>
-      <a class="btn btn-secondary" id="batchDlDelivery" style="display:none" href="#" onclick="return batchDownload('delivery')">批量下载审核表</a>
-      <a class="btn btn-secondary" id="batchDlMerged" style="display:none" href="#" onclick="return batchDownload('merged')">批量下载合并表</a>
-      <button class="btn btn-primary" id="startBtn" onclick="startBatch()">开始处理全部</button>
-    </div>
-  </section>
+      <section class="card">
+        <div class="ctitle">批量上传</div>
+        <div class="drop" id="drop" ondragover="dragOver(event)" ondragleave="dragLeave()" ondrop="dropFiles(event)">
+          <input id="fileInput" type="file" multiple accept=".xlsx,.xls,.csv" onchange="pickFiles(event)">
+          <div class="drop-title">选择或拖入凭证、明细、发票文件</div>
+          <div class="drop-sub">系统会读取前 10 行，按利润中心编码自动分组</div>
+        </div>
+        <div class="file-list" id="fileList"></div>
+        <div class="runrow">
+          <span class="hint" id="uploadHint">请选择需要处理的文件</span>
+          <button class="btn btn-primary" id="previewBtn" onclick="previewBatch()" disabled>上传并识别分组</button>
+        </div>
+      </section>
+
+      <section class="card" id="groupPanel" style="display:none">
+        <div class="ctitle">利润中心分组确认</div>
+        <div class="summary" id="summary"></div>
+        
+        <div style="margin-bottom: 14px; padding-left: 4px;">
+            <label style="cursor: pointer; font-size: 0.85rem; font-weight: 700; color: var(--navy); display: inline-flex; align-items: center;">
+                <input type="checkbox" id="selectAllCb" onchange="toggleAllGroups(this)" style="transform: scale(1.3); margin-right: 8px;">
+                一键全选 / 取消全选
+            </label>
+        </div>
+
+        <div class="groups" id="groups"></div>
+        <div class="rejected" id="rejected" style="display:none"></div>
+        <div class="runrow">
+          <span class="hint" id="startHint">确认分组后开始处理全部</span>
+          <button class="btn btn-secondary" onclick="handleAction('download_benefit')">下载已填列效益表</button>
+          <button class="btn btn-secondary" onclick="handleAction('download_merge')">下载合并表</button>
+          <button class="btn btn-primary" onclick="handleAction('push_audit')" style="background: linear-gradient(135deg, #f39c12, #d35400);">推送审核</button>
+          <button class="btn btn-primary" id="startBtn" onclick="startBatch()">开始自动填列</button>
+        </div>
+      </section>
+  </div>
+
+  <div id="logic-audit" class="tab-content">
+      <section class="card">
+          <div class="ctitle">逻辑审核（支持手工上传补充表，或接收系统自动推送）</div>
+          <div class="drop" id="logicDrop" ondragover="logicDragOver(event)" ondragleave="logicDragLeave()" ondrop="logicDropFiles(event)">
+              <input id="logicFileInput" type="file" multiple accept=".xlsx,.xls" onchange="logicPickFiles(event)">
+              <div class="drop-title">选择或拖入补充完毕的《效益表》文件</div>
+              <div class="drop-sub">已在第一步自动推送的项目会自动出现在下方列表</div>
+          </div>
+          <div class="file-list" id="logicFileList"></div>
+          <div class="runrow">
+              <span class="hint" id="logicUploadHint">请选择需要审核的文件</span>
+              <button class="btn btn-primary" id="logicStartBtn" onclick="startLogicAudit()" disabled style="background: linear-gradient(135deg, #f39c12, #d35400);">开始批量审核</button>
+          </div>
+      </section>
+      
+      <section class="card" id="logicResultPanel" style="display:none">
+          <div class="ctitle">逻辑审核规则核对明细与结果</div>
+          <div class="groups" id="logicResultGroups"></div>
+      </section>
+  </div>
+
+  <div id="finance-check" class="tab-content">
+      <section class="card">
+          <div class="ctitle">核算检查（基于合并表跑审计规则）</div>
+          <div class="drop" style="margin-bottom: 20px;">
+              <div class="drop-title" style="color: var(--muted); font-weight: normal;">此处后续对接智能生成的财务制度代码，输出规范的问题清单。</div>
+          </div>
+      </section>
+  </div>
 </main>
 
 <footer>效益审核自动填报平台 · 审计部内部系统</footer>
 
 <script>
-const S = {
-  files: [],
-  batchId: '',
-  groups: [],
-  cards: new Map(),
-  pollers: new Map(),
-  logIndex: new Map()
-}
-
-function esc(value){
-  return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-}
-
+// ==================== 1. 自动填报区核心逻辑 ====================
+const S = { files: [], batchId: '', groups: [], cards: new Map(), pollers: new Map(), logIndex: new Map() }
+function esc(value){ return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
 function setStep(n){
   [1,2,3].forEach(i=>{
     const el = document.getElementById('step'+i)
-    el.classList.remove('active','done')
-    if(i < n) el.classList.add('done')
-    if(i === n) el.classList.add('active')
+    if(el) { el.classList.remove('active','done'); if(i < n) el.classList.add('done'); if(i === n) el.classList.add('active'); }
   })
 }
-
 function pickFiles(event){ setFiles(Array.from(event.target.files || [])) }
-function dragOver(event){ event.preventDefault(); document.getElementById('drop').classList.add('over') }
-function dragLeave(){ document.getElementById('drop').classList.remove('over') }
-function dropFiles(event){
-  event.preventDefault()
-  dragLeave()
-  setFiles(Array.from(event.dataTransfer.files || []))
-}
+function dragOver(event){ event.preventDefault(); const d = document.getElementById('drop'); if(d) d.classList.add('over'); }
+function dragLeave(){ const d = document.getElementById('drop'); if(d) d.classList.remove('over'); }
+function dropFiles(event){ event.preventDefault(); dragLeave(); setFiles(Array.from(event.dataTransfer.files || [])) }
 
 function setFiles(files){
-  S.files = files
-  S.batchId = ''
-  S.groups = []
-  S.cards.clear()
-  document.getElementById('groupPanel').style.display = 'none'
-  document.getElementById('previewBtn').disabled = files.length === 0
-  document.getElementById('uploadHint').textContent = files.length ? `已选择 ${files.length} 个文件` : '请选择需要处理的文件'
-  document.getElementById('fileList').innerHTML = files.map(file => `<div class="file-pill">${esc(file.name)}</div>`).join('')
-  setStep(1)
+  S.files = files; S.batchId = ''; S.groups = []; S.cards.clear();
+  const gp = document.getElementById('groupPanel');
+  if (gp) gp.style.display = 'none'; 
+  const pBtn = document.getElementById('previewBtn');
+  if (pBtn) pBtn.disabled = files.length === 0;
+  const uh = document.getElementById('uploadHint');
+  if (uh) uh.textContent = files.length ? `已选择 ${files.length} 个文件` : '请选择需要处理的文件';
+  const fl = document.getElementById('fileList');
+  if (fl) fl.innerHTML = files.map(f => `<div class="file-pill">${esc(f.name)}</div>`).join('');
+  setStep(1);
 }
 
 async function previewBatch(){
-  const btn = document.getElementById('previewBtn')
-  btn.disabled = true
-  btn.textContent = '正在识别...'
-  const fd = new FormData()
-  fd.append('action','preview')
-  S.files.forEach(file => fd.append('files', file))
+  const btn = document.getElementById('previewBtn'); 
+  if(btn) { btn.disabled = true; btn.textContent = '正在识别...'; }
+  const fd = new FormData(); fd.append('action','preview'); S.files.forEach(f => fd.append('files', f));
   try{
-    const resp = await fetch('/api/submit_batch', {method:'POST', body:fd})
-    const data = await resp.json()
-    if(!resp.ok || data.error) throw new Error(data.error || '批量上传失败')
-    S.batchId = data.batch_id
-    S.groups = data.groups || []
-    renderGroups(data.rejected || [])
-  }catch(err){
-    alert(err.message || '批量上传失败')
-  }finally{
-    btn.disabled = S.files.length === 0
-    btn.textContent = '上传并识别分组'
-  }
+    const resp = await fetch('/api/submit_batch', {method:'POST', body:fd});
+    const data = await resp.json();
+    if(!resp.ok || data.error) throw new Error(data.error || '上传失败');
+    S.batchId = data.batch_id; S.groups = data.groups || []; renderGroups(data.rejected || []);
+  }catch(err){ alert(err.message); }finally{ if(btn) { btn.disabled = S.files.length === 0; btn.textContent = '上传并识别分组'; } }
 }
 
 function renderGroups(rejected){
-  const panel = document.getElementById('groupPanel')
-  const groupsBox = document.getElementById('groups')
-  const readyCount = S.groups.filter(g => g.ready).length
-  panel.style.display = 'block'
-  document.getElementById('batchDlDelivery').style.display = 'none'
-  document.getElementById('batchDlMerged').style.display = 'none'
-  document.getElementById('summary').innerHTML =
-    `<span>识别到 <strong>${S.groups.length}</strong> 个利润中心分组，其中 <strong>${readyCount}</strong> 个具备凭证和明细。</span>`
-  document.getElementById('startBtn').disabled = S.groups.length === 0
-  document.getElementById('startHint').textContent = S.groups.length ? '确认分组后开始处理全部' : '未识别到可处理分组'
-
-  groupsBox.innerHTML = S.groups.map(group => {
-    const cardId = `pc_${group.profit_center}`
-    return `
-      <article class="group-card" id="${cardId}">
-        <div class="group-head">
-          <div>
-            <div class="pc">${esc(group.profit_center)}</div>
-            <div class="hint">利润中心</div>
-          </div>
-          <span class="status ${group.ready ? 'ready' : 'error'}" data-role="status">${group.ready ? '待确认' : '分组不完整'}</span>
-        </div>
-        ${group.error ? `<div class="errorbox">${esc(group.error)}</div>` : ''}
-        <div class="files">
-          ${fileLine('凭证主表', group.voucher_files)}
-          ${fileLine('辅助明细账', group.detail_files)}
-          ${fileLine('发票台账', group.invoice_files)}
-          ${fileLine('其他文件', group.other_files)}
-        </div>
-        <div class="bar"><div class="fill" data-role="fill"></div></div>
-        <div class="logs" data-role="logs"></div>
-        <div class="actions" data-role="actions">
-          <button class="btn btn-secondary" onclick="toggleLogs('${cardId}')">查看日志</button>
-        </div>
-      </article>`
-  }).join('')
-
-  S.cards.clear()
-  S.groups.forEach(group => S.cards.set(group.profit_center, document.getElementById(`pc_${group.profit_center}`)))
-
-  const rejectedBox = document.getElementById('rejected')
-  if(rejected.length){
-    rejectedBox.style.display = 'block'
-    rejectedBox.innerHTML = `<div class="rejected-title">未参与分组的文件</div>` +
-      rejected.map(item => `<div class="file-row"><b>${esc(item.filename)}</b>：${esc(item.error)}</div>`).join('')
-  }else{
-    rejectedBox.style.display = 'none'
-    rejectedBox.innerHTML = ''
+  const gp = document.getElementById('groupPanel');
+  if(gp) gp.style.display = 'block';
+  const sb = document.getElementById('startBtn');
+  if(sb) sb.disabled = S.groups.length === 0;
+  
+  const masterCb = document.getElementById('selectAllCb');
+  if(masterCb) masterCb.checked = false;
+  
+  const gBox = document.getElementById('groups');
+  if(gBox) {
+      gBox.innerHTML = S.groups.map(group => `
+          <article class="group-card" id="pc_${group.profit_center}">
+            <div class="group-head">
+              <div>
+                <div class="pc"><input type="checkbox" class="row-checkbox" value="${esc(group.profit_center)}" style="transform: scale(1.3); margin-right: 10px; cursor: pointer;">${esc(group.profit_center)}</div>
+                <div style="font-size:0.8rem;color:var(--blue);margin:2px 0 0 32px;font-weight:500;">${esc(group.pc_name || '（未识别）')}</div>
+              </div>
+              <span class="status ${group.ready ? 'ready' : 'error'}" data-role="status">${group.ready ? '待确认' : '不完整'}</span>
+            </div>
+            <div class="bar"><div class="fill" data-role="fill"></div></div>
+          </article>`).join('');
   }
+  S.cards.clear();
+  S.groups.forEach(g => S.cards.set(g.profit_center, document.getElementById(`pc_${g.profit_center}`)));
 }
 
-function fileLine(label, files){
-  if(!files || !files.length) return `<div class="file-row"><b>${label}</b>：未识别</div>`
-  return `<div class="file-row"><b>${label}</b>：${files.map(esc).join('、')}</div>`
-}
-
-function toggleLogs(cardId){
-  const card = document.getElementById(cardId)
-  const logs = card.querySelector('[data-role="logs"]')
-  logs.classList.toggle('open')
+// ✨ 终极修复：加了状态锁的一键全选功能
+function toggleAllGroups(masterCb) {
+    // 关键：先把要切换的状态缓存下来，防止下面的广播事件把 masterCb 冲掉！
+    const targetState = masterCb.checked; 
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    
+    checkboxes.forEach(cb => {
+        if (cb.checked !== targetState) {
+            cb.checked = targetState;
+            cb.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    });
+    
+    // 循环结束后，强行恢复全选框本身的正确状态
+    masterCb.checked = targetState;
 }
 
 async function startBatch(){
-  if(!S.batchId){
-    alert('请先上传并识别分组')
-    return
-  }
-  const btn = document.getElementById('startBtn')
-  btn.disabled = true
-  btn.textContent = '正在启动...'
-  const fd = new FormData()
-  fd.append('action','start')
-  fd.append('batch_id', S.batchId)
+  const btn = document.getElementById('startBtn'); 
+  if(btn){ btn.disabled = true; btn.textContent = '正在启动...'; }
+  const fd = new FormData(); fd.append('action','start'); fd.append('batch_id', S.batchId);
   try{
-    const resp = await fetch('/api/submit_batch', {method:'POST', body:fd})
-    const data = await resp.json()
-    if(!resp.ok || data.error) throw new Error(data.error || '启动批量处理失败')
-    setStep(2)
-    document.getElementById('startHint').textContent = `已创建 ${data.job_ids.length} 个任务，系统正在串行处理`
-    if(!data.job_ids.length) finishIfAllSettled()
-    ;(data.jobs || []).forEach(job => {
-      const card = S.cards.get(job.profit_center)
-      if(card) card.dataset.jobId = job.job_id
-      S.logIndex.set(job.job_id, 0)
-      S.pollers.set(job.job_id, setInterval(() => pollJob(job.job_id, job.profit_center), 900))
-      pollJob(job.job_id, job.profit_center)
-    })
-  }catch(err){
-    alert(err.message || '启动批量处理失败')
-    btn.disabled = false
-    btn.textContent = '开始处理全部'
+    const resp = await fetch('/api/submit_batch', {method:'POST', body:fd});
+    const data = await resp.json();
+    setStep(2);
+    (data.jobs || []).forEach(j => { S.pollers.set(j.job_id, setInterval(() => pollJob(j.job_id, j.profit_center), 900)); pollJob(j.job_id, j.profit_center); });
+  }catch(err){ alert(err.message); if(btn){ btn.disabled = false; btn.textContent = '开始自动填列'; } }
+}
+
+async function pollJob(jobId, pc){
+  let data; try{ const resp = await fetch('/api/status/' + jobId); data = await resp.json(); }catch(_){ return; }
+  const card = S.cards.get(pc); if(!card) return;
+  
+  const badge = card.querySelector('[data-role="status"]'); 
+  const statusZh = {queued:'等待中', running:'处理中', done:'处理完成', error:'处理失败'}[data.status] || data.status;
+  if(badge) { badge.className = `status ${data.status}`; badge.textContent = statusZh; }
+  
+  const fill = card.querySelector('[data-role="fill"]');
+  if(fill) fill.style.width = `${data.progress || 0}%`; 
+  
+  if(data.status === 'done' || data.status === 'error'){ 
+      clearInterval(S.pollers.get(jobId)); 
+      S.pollers.delete(jobId); 
+      
+      if (data.status === 'error') {
+          const err = document.createElement('div');
+          err.className = 'errorbox'; err.style.marginTop = '10px';
+          err.textContent = `${data.error_summary || '未知错误'}${data.error_detail ? '\\n' + data.error_detail : ''}`;
+          card.appendChild(err);
+      }
+      
+      if(S.pollers.size === 0){
+          setStep(3);
+          const sh = document.getElementById('startHint');
+          if(sh) sh.textContent = '批量处理已结束，您可以一键全选并下载/推送。';
+          const startBtn = document.getElementById('startBtn');
+          if (startBtn) { startBtn.textContent = '已完成填列'; startBtn.disabled = true; }
+      }
   }
 }
 
-async function pollJob(jobId, profitCenter){
-  let data
-  try{
-    const resp = await fetch('/api/status/' + jobId)
-    data = await resp.json()
-  }catch(_){
-    return
-  }
-  const card = S.cards.get(profitCenter)
-  if(!card) return
-
-  setCardStatus(card, data.status, data.status)
-  card.querySelector('[data-role="fill"]').style.width = `${data.progress || 0}%`
-
-  const logs = card.querySelector('[data-role="logs"]')
-  const allLogs = data.all_logs || []
-  const start = S.logIndex.get(jobId) || 0
-  allLogs.slice(start).forEach(line => {
-    const div = document.createElement('div')
-    div.textContent = line
-    logs.appendChild(div)
-  })
-  S.logIndex.set(jobId, allLogs.length)
-  logs.scrollTop = logs.scrollHeight
-
-  if(data.status === 'done'){
-    clearInterval(S.pollers.get(jobId))
-    S.pollers.delete(jobId)
-    setCardStatus(card, 'done', '处理完成')
-    card.querySelector('[data-role="fill"]').style.width = '100%'
-    card.querySelector('[data-role="actions"]').innerHTML = `
-      <a class="btn btn-primary" href="/api/dl/${jobId}/delivery" target="_blank">下载交付版</a>
-      <a class="btn btn-secondary" href="/api/dl/${jobId}/merged" target="_blank">下载合并表</a>
-      <button class="btn btn-secondary" onclick="toggleLogs('${card.id}')">查看日志</button>`
-    finishIfAllSettled()
-  }
-
-  if(data.status === 'error'){
-    clearInterval(S.pollers.get(jobId))
-    S.pollers.delete(jobId)
-    setCardStatus(card, 'error', '处理失败')
-    const old = card.querySelector('.errorbox')
-    if(old) old.remove()
-    const err = document.createElement('div')
-    err.className = 'errorbox'
-    err.textContent = `${data.error_summary || '未知错误'}${data.error_detail ? '\n' + data.error_detail : ''}`
-    card.insertBefore(err, card.querySelector('.actions'))
-    finishIfAllSettled()
-  }
+// ==================== 2. 全局 Tab 交互逻辑与真实下载 ====================
+function switchTab(evt, tabId) {
+    document.querySelectorAll(".tab-content, .tab-btn").forEach(el => el.classList.remove("active"));
+    const tabEl = document.getElementById(tabId);
+    if(tabEl) tabEl.classList.add("active");
+    evt.currentTarget.classList.add("active");
 }
 
-function setCardStatus(card, status, text){
-  const label = {queued:'等待中', running:'处理中', done:'处理完成', error:'处理失败'}[text] || text
-  const badge = card.querySelector('[data-role="status"]')
-  badge.className = `status ${status}`
-  badge.textContent = label
+document.addEventListener('change', e => {
+    // 监听子勾选框的状态变化
+    if(e.target && e.target.classList.contains('row-checkbox')) {
+        const card = e.target.closest('.group-card');
+        if(card) { e.target.checked ? card.classList.add('row-selected') : card.classList.remove('row-selected'); }
+        
+        // 智能联动：检查是否全部勾满
+        const allCbs = document.querySelectorAll('.row-checkbox');
+        const checkedCbs = document.querySelectorAll('.row-checkbox:checked');
+        const master = document.getElementById('selectAllCb');
+        if (master && allCbs.length > 0) {
+            master.checked = (allCbs.length === checkedCbs.length);
+        }
+    }
+});
+
+function handleAction(actionType) {
+    let ids = Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value);
+    if (!ids.length) return alert("请先勾选项目！");
+
+    if (actionType === 'download_benefit' || actionType === 'download_merge') {
+        const typeParam = (actionType === 'download_benefit') ? 'benefit' : 'merged';
+        const idsParam = encodeURIComponent(ids.join(','));
+        window.location.href = `/api/download_selected?type=${typeParam}&ids=${idsParam}`;
+        return;
+    }
+
+    fetch('/api/handle_action', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:actionType, project_ids:ids})})
+    .then(r => r.json()).then(data => {
+        if(actionType === 'push_audit'){
+            ids.forEach(id => { if(!pushedProjects.includes(id)) pushedProjects.push(id); });
+            renderLogicList(); alert("成功推送！"); 
+            const tabs = document.querySelectorAll('.tab-btn');
+            if(tabs.length > 1) tabs[1].click(); 
+        } else { alert(data.message); }
+    });
 }
 
-function finishIfAllSettled(){
-  if(S.pollers.size === 0){
-    setStep(3)
-    document.getElementById('startHint').textContent = '批量处理已结束，可在各分组卡片下载结果或查看错误'
-    updateBatchDownloadButtons()
-  }
+// ==================== 3. 逻辑审核区 (动态执行显示) ====================
+let logicFiles = []; let pushedProjects = [];
+function logicPickFiles(e) { logicFiles = Array.from(e.target.files || []); renderLogicList(); }
+function logicDragOver(e) { e.preventDefault(); const d = document.getElementById('logicDrop'); if(d) d.classList.add('over'); }
+function logicDragLeave() { const d = document.getElementById('logicDrop'); if(d) d.classList.remove('over'); }
+function logicDropFiles(e) { e.preventDefault(); logicDragLeave(); logicFiles = Array.from(e.dataTransfer.files || []); renderLogicList(); }
+
+function renderLogicList() {
+    let html = pushedProjects.map(pc => `<div class="file-pill" style="border-left:3px solid var(--mint);background:#f0fdf4;">🔄 <b>推送:</b> ${esc(pc)}</div>`).join('') +
+               logicFiles.map(f => `<div class="file-pill" style="border-left:3px solid var(--cyan);background:#f0f9ff;">📄 <b>手工:</b> ${esc(f.name)}</div>`).join('');
+    const list = document.getElementById('logicFileList');
+    if(list) list.innerHTML = html;
+    const len = logicFiles.length + pushedProjects.length;
+    const btn = document.getElementById('logicStartBtn');
+    if(btn) btn.disabled = !len;
+    const hint = document.getElementById('logicUploadHint');
+    if(hint) hint.textContent = len ? `已就绪 ${len} 个待审核项` : '请选择文件';
 }
 
-function updateBatchDownloadButtons(){
-  const dlDelivery = document.getElementById('batchDlDelivery')
-  const dlMerged = document.getElementById('batchDlMerged')
-  const hasBatch = !!S.batchId
-  const allDone = S.pollers.size === 0
-  if(hasBatch && allDone){
-    dlDelivery.style.display = 'inline-flex'
-    dlMerged.style.display = 'inline-flex'
-  }else{
-    dlDelivery.style.display = 'none'
-    dlMerged.style.display = 'none'
-  }
+async function startLogicAudit() {
+    if(!logicFiles.length && !pushedProjects.length) return;
+    const btn = document.getElementById('logicStartBtn');
+    if(btn) { btn.disabled = true; btn.textContent = '正在获取数据...'; }
+    
+    const fd = new FormData();
+    logicFiles.forEach(f => fd.append('files', f));
+    fd.append('pushed_projects', JSON.stringify(pushedProjects));
+
+    try {
+        const resp = await fetch('/api/logic_audit_upload', {method:'POST', body:fd});
+        const data = await resp.json();
+        
+        if(data.status === 'success') {
+            const resultPanel = document.getElementById('logicResultPanel');
+            const resultBox = document.getElementById('logicResultGroups');
+            if(resultPanel) resultPanel.style.display = 'block'; 
+            
+            let html = '';
+            data.data.forEach((proj, idx) => {
+                let displayCode = proj.pc_code || '未知编码';
+                let displayName = proj.project_name || '';
+                let nameHtml = (displayName && displayName !== displayCode) 
+                    ? `<div style="font-size:0.8rem;color:var(--blue);margin:2px 0 0 0;font-weight:500;">${esc(displayName)}</div>` 
+                    : '';
+
+                html += `
+                <article class="group-card" id="logic-card-${idx}" style="min-height:auto;">
+                    <div class="group-head">
+                        <div>
+                            <div class="pc" style="display:flex; align-items:center;">${esc(displayCode)}</div>
+                            ${nameHtml}
+                        </div>
+                        <span class="status queued" id="logic-status-${idx}">准备校验</span>
+                    </div>
+                    <div id="logic-steps-${idx}" style="margin-top:12px; display:flex; flex-direction:column;"></div>
+                </article>`;
+            });
+            if(resultBox) resultBox.innerHTML = html;
+            if(resultPanel) resultPanel.scrollIntoView({behavior: "smooth"});
+            
+            data.data.forEach((proj, idx) => {
+                animateAuditSteps(idx, proj);
+            });
+            
+        } else {
+            alert("❌ 错误：" + data.error);
+        }
+    } catch(err) {
+        alert("🚨 请求发生错误！");
+    } finally {
+        if(btn) { btn.disabled = false; btn.textContent = '重新批量审核'; }
+    }
 }
 
-function batchDownload(fileType){
-  if(!S.batchId) return false
-  const url = '/api/batch_download/' + encodeURIComponent(S.batchId) + '/' + encodeURIComponent(fileType)
-  window.open(url, '_blank')
-  return false
+async function animateAuditSteps(idx, proj) {
+    const container = document.getElementById(`logic-steps-${idx}`);
+    const statusBadge = document.getElementById(`logic-status-${idx}`);
+    const card = document.getElementById(`logic-card-${idx}`);
+    
+    if(statusBadge) {
+        statusBadge.className = 'status running';
+        statusBadge.textContent = '正在执行规则...';
+    }
+    
+    if(proj.details && container) {
+        for (let i = 0; i < proj.details.length; i++) {
+            const step = proj.details[i];
+            
+            const el = document.createElement('div');
+            el.className = 'audit-step checking';
+            el.innerHTML = `<span class="spinner">⚙️</span> <b>${esc(step.rule)}</b> <span class="step-desc">调取并分析底层数据中...</span>`;
+            container.appendChild(el);
+            
+            if(el.scrollIntoView) el.scrollIntoView({behavior: "smooth", block: "nearest"});
+            
+            const delay = Math.floor(Math.random() * 300) + 200;
+            await new Promise(r => setTimeout(r, delay));
+            
+            el.className = `audit-step ${step.status}`;
+            let icon = step.status === 'pass' ? '✅' : (step.status === 'fail' ? '❌' : '⚠️');
+            el.innerHTML = `<span>${icon}</span> <b>${esc(step.rule)}</b> <span class="step-desc" style="color:inherit;opacity:0.8">${esc(step.desc)}</span>`;
+        }
+    }
+    
+    if(statusBadge) {
+        statusBadge.className = `status ${proj.is_pass ? 'ready' : 'error'}`;
+        statusBadge.textContent = proj.is_pass ? '符合要求' : '发现异常';
+    }
+    if(card) {
+        card.style.borderTop = `4px solid ${proj.is_pass ? 'var(--mint)' : 'var(--red)'}`;
+    }
+    
+    let errHtml = '';
+    if (proj.errors && proj.errors.length > 0) {
+        proj.errors.forEach(err => {
+            let bg = "var(--red-bg)", color = "var(--red)", border = "#f2c4c0";
+            if (err.type.includes("提示") || err.type.includes("预警")) { bg = "#fffbeb"; color = "var(--amber)"; border = "#fde68a"; }
+            let rowText = err.row !== '-' ? `第 ${err.row} 行：` : '';
+            errHtml += `<div class="errorbox" style="margin-top:8px; background:${bg}; color:${color}; border:1px solid ${border};">
+                <b>[${err.type}]</b> ${rowText}${esc(err.desc)}
+            </div>`;
+        });
+    }
+    if(proj.is_pass) {
+        errHtml += `<div class="errorbox" style="margin-top:8px; background:#e8f5e9; color:var(--mint); border:1px solid #a5d6a7;">🎉 完美！核心逻辑校验均已通过。</div>`;
+    }
+    const summaryDiv = document.createElement('div');
+    summaryDiv.style.marginTop = '10px';
+    summaryDiv.innerHTML = errHtml;
+    if(container) container.appendChild(summaryDiv);
 }
 </script>
 </body>

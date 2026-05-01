@@ -36,12 +36,50 @@ class SAPAuditReader:
 
     def smart_read(self, path):
         self.log.info("读取文件: %s", os.path.basename(path))
-        if path.lower().endswith('.csv'):
-            try:
-                return pd.read_csv(path, low_memory=False)
-            except Exception:
-                return pd.read_csv(path, encoding='gbk', low_memory=False)
-        return pd.read_excel(path).dropna(how='all')
+        is_csv = path.lower().endswith('.csv')
+
+        # --- 🚀 智能探针：寻找真实表头，跳过前导废话行 ---
+        try:
+            if is_csv:
+                try:
+                    df_probe = pd.read_csv(path, nrows=20, header=None, low_memory=False)
+                except Exception:
+                    df_probe = pd.read_csv(path, encoding='gbk', nrows=20, header=None, low_memory=False)
+            else:
+                df_probe = pd.read_excel(path, nrows=20, header=None)
+
+            header_row = 0
+            # 探测关键字：只要行内包含以下核心字段，即判定为真实表头
+            keywords = ['公司代码', '公司', '凭证编号', '凭证号', '会计凭证']
+            for idx, row in df_probe.iterrows():
+                row_strs = [str(x).strip() for x in row.values if pd.notna(x)]
+                if any(k in row_strs for k in keywords):
+                    header_row = idx
+                    break
+
+            # 使用找到的真实行号正式读取
+            if is_csv:
+                try:
+                    df = pd.read_csv(path, header=header_row, low_memory=False)
+                except Exception:
+                    df = pd.read_csv(path, encoding='gbk', header=header_row, low_memory=False)
+            else:
+                df = pd.read_excel(path, header=header_row)
+
+            # 清理全空行及表头前后看不见的空格
+            df = df.dropna(how='all')
+            df.columns = [str(c).strip() for c in df.columns]
+            return df
+
+        except Exception as e:
+            self.log.warning("智能探针探测表头异常，退回传统读取模式: %s", str(e))
+            # 兜底：如果探针失败，退回最原始的盲读方式
+            if is_csv:
+                try:
+                    return pd.read_csv(path, low_memory=False)
+                except Exception:
+                    return pd.read_csv(path, encoding='gbk', low_memory=False)
+            return pd.read_excel(path).dropna(how='all')
 
     def preprocess(self, df):
         for std_name, aliases in self.alias_map.items():

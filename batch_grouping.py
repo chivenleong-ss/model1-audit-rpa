@@ -29,6 +29,15 @@ PROFIT_CENTER_ALIASES = {
     "profit_center",
 }
 
+# --- 新增：用于识别项目名称表头的关键字 ---
+PROFIT_CENTER_NAME_ALIASES = {
+    "利润中心文本描述",
+    "利润中心名称",
+    "项目名称",
+    "利润中心描述",
+    "描述",
+}
+
 PROFIT_CENTER_CODE_RE = re.compile(r"\b[A-Z]\d{6,}\b|\b\d{6,}\b", re.IGNORECASE)
 STRICT_PROFIT_CENTER_CODE_RE = re.compile(r"\b[A-Z]\d{6,}\b", re.IGNORECASE)
 
@@ -49,6 +58,7 @@ class BatchFile:
 @dataclass
 class ProfitCenterGroup:
     profit_center: str
+    pc_name: str = ""  # --- 新增：利润中心名称描述 ---
     voucher_files: list[BatchFile] = field(default_factory=list)
     detail_files: list[BatchFile] = field(default_factory=list)
     invoice_files: list[BatchFile] = field(default_factory=list)
@@ -72,6 +82,7 @@ class ProfitCenterGroup:
     def to_payload(self) -> dict:
         return {
             "profit_center": self.profit_center,
+            "pc_name": self.pc_name,  # --- 新增：推送给前端的 JSON 字段 ---
             "ready": self.ready,
             "error": self.error,
             "voucher_files": [item.filename for item in self.voucher_files],
@@ -99,6 +110,14 @@ def _is_profit_center_alias(value) -> bool:
     if not normalized:
         return False
     return any(normalized == _normalize_alias(alias) for alias in PROFIT_CENTER_ALIASES)
+
+
+# --- 新增：判断是否是名称表头 ---
+def _is_profit_center_name_alias(value) -> bool:
+    normalized = _normalize_alias(value)
+    if not normalized:
+        return False
+    return any(normalized == _normalize_alias(alias) for alias in PROFIT_CENTER_NAME_ALIASES)
 
 
 def _read_preview(file_path: str) -> pd.DataFrame:
@@ -137,36 +156,44 @@ def _extract_strict_code_from_text(value: str) -> str:
     return match.group(0).upper()
 
 
-def extract_profit_center(file_path: str) -> str:
+# --- 修改：升级版提取函数，同时提取 Code 和 Name ---
+def extract_profit_center_info(file_path: str) -> tuple[str, str]:
     """
-    读取文件前10行，提取利润中心唯一编码。
-
-    支持两种常见 SAP 导出形态：
-    1. 某行是表头，表头列名为“利润中心/利润中心编号/PRCTR”等，下面行是编码；
-    2. 表头字段旁边直接写编码。
+    读取文件前10行，提取利润中心唯一编码 和 文本描述（如果有）。
+    返回: (pc_code, pc_name)
     """
     preview = _read_preview(file_path)
     if preview.empty:
         raise RuntimeError(f"文件为空，无法提取利润中心：{os.path.basename(file_path)}")
 
     found_codes: list[str] = []
+    found_names: list[str] = []
     row_count, col_count = preview.shape
 
     for row_idx in range(row_count):
         for col_idx in range(col_count):
             cell = _clean_text(preview.iat[row_idx, col_idx])
-            if not _is_profit_center_alias(cell):
-                continue
+            
+            # 1. 抓取利润中心代码
+            if _is_profit_center_alias(cell):
+                for next_row in range(row_idx + 1, row_count):
+                    code = _extract_code_from_text(preview.iat[next_row, col_idx])
+                    if code:
+                        found_codes.append(code)
 
-            for next_row in range(row_idx + 1, row_count):
-                code = _extract_code_from_text(preview.iat[next_row, col_idx])
-                if code:
-                    found_codes.append(code)
+                if col_idx + 1 < col_count:
+                    code = _extract_code_from_text(preview.iat[row_idx, col_idx + 1])
+                    if code:
+                        found_codes.append(code)
 
-            if col_idx + 1 < col_count:
-                code = _extract_code_from_text(preview.iat[row_idx, col_idx + 1])
-                if code:
-                    found_codes.append(code)
+            # 2. 抓取利润中心名称 (新增逻辑)
+            if _is_profit_center_name_alias(cell):
+                for next_row in range(row_idx + 1, row_count):
+                    name_val = _clean_text(preview.iat[next_row, col_idx])
+                    # 确保抓到的名字不是纯粹的一串数字代码
+                    if name_val and not PROFIT_CENTER_CODE_RE.fullmatch(name_val):
+                        found_names.append(name_val)
+                        break
 
     if not found_codes:
         for value in preview.to_numpy().ravel():
@@ -185,7 +212,10 @@ def extract_profit_center(file_path: str) -> str:
         raise RuntimeError(
             f"前10行识别到多个利润中心编码：{os.path.basename(file_path)}（{', '.join(unique_codes)}）"
         )
-    return unique_codes[0]
+        
+    final_code = unique_codes[0]
+    final_name = found_names[0] if found_names else ""
+    return final_code, final_name
 
 
 def detect_file_type(file_path: str) -> str:
@@ -215,7 +245,8 @@ def build_profit_center_groups(file_paths: list[str]) -> tuple[list[ProfitCenter
     for file_path in file_paths:
         filename = os.path.basename(file_path)
         try:
-            profit_center = extract_profit_center(file_path)
+            # --- 修改：解包获取 code 和 name ---
+            profit_center, pc_name = extract_profit_center_info(file_path)
             file_type = detect_file_type(file_path)
             item = BatchFile(
                 path=file_path,
@@ -223,7 +254,17 @@ def build_profit_center_groups(file_paths: list[str]) -> tuple[list[ProfitCenter
                 profit_center=profit_center,
                 file_type=file_type,
             )
-            group = groups.setdefault(profit_center, ProfitCenterGroup(profit_center=profit_center))
+            
+            # --- 修改：如果是第一次创建 group，带上 pc_name ---
+            if profit_center not in groups:
+                groups[profit_center] = ProfitCenterGroup(profit_center=profit_center, pc_name=pc_name)
+            else:
+                # 如果这个项目已经建了组，但是之前的表没扫出名字，现在的表扫出了名字，就补充进去
+                if pc_name and not groups[profit_center].pc_name:
+                    groups[profit_center].pc_name = pc_name
+                    
+            group = groups[profit_center]
+            
             if file_type == "voucher":
                 group.voucher_files.append(item)
             elif file_type == "detail":

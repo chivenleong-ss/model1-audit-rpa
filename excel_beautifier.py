@@ -20,6 +20,7 @@ import copy as py_copy
 
 GREY_SET = {"FFBFBFBF", "FFD9D9D9", "FFC0C0C0", "FFE0E0E0","FFD3D3D3", "FFCCCCCC", "FFB8B8B8", "FFAEAAAA"}
 WHITE_FILL = PatternFill(start_color="FFFFFFFF", end_color="FFFFFFFF", fill_type="solid")
+COL_S = 19
 
 class ExcelBeautifier:
 
@@ -27,7 +28,14 @@ class ExcelBeautifier:
         self.result_dir  = result_dir
         self.log         = logger
         self.input_path  = os.path.join(result_dir, "自动填报完成_效益审核表.xlsx")
-        self.output_path = os.path.join(result_dir, "最终完美交付版_效益审核表.xlsx")
+        self.output_path = os.path.join(result_dir, "效益审核表（已填）.xlsx")
+
+    @staticmethod
+    def _set_value(ws, row: int, col: int, value):
+        if row <= 10:
+            return False
+        ws.cell(row, col).value = value
+        return True
 
     @staticmethod
     def _norm(val) -> str:
@@ -184,15 +192,33 @@ class ExcelBeautifier:
             if start_row > end_row:
                 continue
 
-            for col_idx in range(1, ws.max_column + 1):
+            for col_idx in range(1, COL_S):
                 cell = ws.cell(sub, col_idx)
                 cl = get_column_letter(col_idx)
-                if col_idx >= 8:  # 小计行所有业务数字列均对明细区域求和，避免行内自引用
-                    cell.value = f"=SUM({cl}{start_row}:{cl}{end_row})"
+                if col_idx in (8, 9, 11, 13, 14):  # H/I/K/M/N 列汇总明细区域
+                    self._set_value(ws, sub, col_idx, f"=SUM({cl}{start_row}:{cl}{end_row})")
                     if col_idx == 13:
                         cell.number_format = '#,##0.00' if cell.number_format == 'General' else cell.number_format
                     fixed += 1
-            self.log.info("   %-12s SUM 强制重写 行%d = SUM(%d:%d)，小计行不再使用行内运算", sub_kw, sub, start_row, end_row)
+                elif col_idx == 10:  # J 列保持模板行内公式
+                    self._set_value(ws, sub, col_idx, f"=H{sub}+I{sub}")
+                    fixed += 1
+                elif col_idx == 12:  # L 列保持模板行内公式
+                    self._set_value(ws, sub, col_idx, f"=J{sub}-K{sub}")
+                    fixed += 1
+                elif col_idx == COL_O:
+                    self._set_value(ws, sub, col_idx, f"=L{sub}-M{sub}")
+                    fixed += 1
+                elif col_idx == COL_P:
+                    self._set_value(ws, sub, col_idx, f"=K{sub}-N{sub}")
+                    fixed += 1
+                elif col_idx == COL_Q:
+                    self._set_value(ws, sub, col_idx, f"=M{sub}+O{sub}")
+                    fixed += 1
+                elif col_idx == COL_R:
+                    self._set_value(ws, sub, col_idx, f"=M{sub}+N{sub}+O{sub}+P{sub}")
+                    fixed += 1
+            self.log.info("   %-12s SUM 强制重写 行%d = SUM(%d:%d)，J/L 保持模板行内公式", sub_kw, sub, start_row, end_row)
         if not fixed:
             self.log.info("   未找到成本节小计行，跳过 SUM 重写")
 
@@ -206,21 +232,84 @@ class ExcelBeautifier:
         end_row = r_nine - 1
         if start_row > end_row:
             end_row = start_row
+        COL_J, COL_L = 10, 12
         COL_O, COL_P, COL_Q, COL_R = 15, 16, 17, 18
-        for col_idx in range(1, ws.max_column + 1):
+        for col_idx in range(1, COL_S):
             cell = ws.cell(r_yanfa, col_idx)
             cl = get_column_letter(col_idx)
-            if col_idx == 13:  # M 列
-                cell.value = f"=SUM({cl}{start_row}:{cl}{end_row})"
+            if col_idx in (8, 9, 11, 13, 14):
+                self._set_value(ws, r_yanfa, col_idx, f"=SUM({cl}{start_row}:{cl}{end_row})")
+            elif col_idx == COL_J:
+                self._set_value(ws, r_yanfa, col_idx, f"=H{r_yanfa}+I{r_yanfa}")
+            elif col_idx == COL_L:
+                self._set_value(ws, r_yanfa, col_idx, f"=J{r_yanfa}-K{r_yanfa}")
             elif col_idx == COL_O:
-                cell.value = f"=L{r_yanfa}-M{r_yanfa}"
+                self._set_value(ws, r_yanfa, col_idx, f"=L{r_yanfa}-M{r_yanfa}")
             elif col_idx == COL_P:
-                cell.value = f"=K{r_yanfa}-N{r_yanfa}"
+                self._set_value(ws, r_yanfa, col_idx, f"=K{r_yanfa}-N{r_yanfa}")
             elif col_idx == COL_Q:
-                cell.value = f"=M{r_yanfa}+O{r_yanfa}"
+                self._set_value(ws, r_yanfa, col_idx, f"=M{r_yanfa}+O{r_yanfa}")
             elif col_idx == COL_R:
-                cell.value = f"=M{r_yanfa}+N{r_yanfa}+O{r_yanfa}+P{r_yanfa}"
+                self._set_value(ws, r_yanfa, col_idx, f"=M{r_yanfa}+N{r_yanfa}+O{r_yanfa}+P{r_yanfa}")
         self.log.info("   研发费用 强制重写 行%d = SUM(%d:%d)", r_yanfa, start_row, end_row)
+
+    def _fix_extended_section_sums(self, ws):
+        """
+        单独修复 S 列及之后的成本节小计公式。
+        这些列属于债权债务、税务等独立区域，只允许按本节明细范围求和，禁止跨节。
+        """
+        if ws.max_column < COL_S:
+            return
+        sections = [
+            ('（一）人工费',      '人工费小计'),
+            ('（二）分包工程',    '分包工程小计'),
+            ('(三)材料费',       '材料费小计'),
+            ('(四）机械租赁费',   '机械费小计'),
+            ('（五）其他直接费',  '其他直接费小计'),
+            ('（六）间接费',      '间接费小计'),
+            ('（七）安全费',      '安全费小计'),
+        ]
+        section_headers = [self._find_row(ws, hdr_kw) for hdr_kw, _ in sections]
+        section_headers = sorted(r for r in section_headers if r)
+
+        fixed = 0
+        for hdr_kw, sub_kw in sections:
+            hdr = self._find_row(ws, hdr_kw)
+            sub = self._find_row(ws, sub_kw)
+            if not hdr or not sub or sub <= hdr + 1:
+                continue
+
+            next_headers = [r for r in section_headers if r > hdr]
+            next_hdr = min(next_headers) if next_headers else None
+            anchor = None
+            for r in range(sub - 1, hdr, -1):
+                for c in range(2, 6):
+                    if '财务未列部分需增列' in self._norm(ws.cell(r, c).value):
+                        anchor = r
+                        break
+                if anchor:
+                    break
+
+            start_row = hdr + 1
+            end_row = (anchor - 1) if anchor else (sub - 1)
+            if end_row >= sub:
+                end_row = sub - 1
+            if next_hdr and end_row >= next_hdr:
+                self.log.error(
+                    "   S列后公式跨节风险：%s 行%d:%d 超过下一节标题行%d，放弃写入",
+                    sub_kw, start_row, end_row, next_hdr,
+                )
+                continue
+            if start_row > end_row:
+                continue
+
+            for col_idx in range(COL_S, ws.max_column + 1):
+                cl = get_column_letter(col_idx)
+                self._set_value(ws, sub, col_idx, f"=SUM({cl}{start_row}:{cl}{end_row})")
+                fixed += 1
+            self.log.info("   %-12s S列后节内 SUM 行%d = SUM(%d:%d)", sub_kw, sub, start_row, end_row)
+        if not fixed:
+            self.log.info("   S列后节内 SUM 未发现需修复列或小计行")
 
     def _fix_anchor_rows(self, ws):
         """
@@ -228,7 +317,7 @@ class ExcelBeautifier:
         避免这些占位行出现自引用或被误识别为有效计算行。
         """
         found = 0
-        for r in range(7, ws.max_row + 1):
+        for r in range(11, ws.max_row + 1):
             found_anchor = False
             for c in range(2, 6):
                 if '财务未列部分需增列' in self._norm(ws.cell(r, c).value):
@@ -237,42 +326,50 @@ class ExcelBeautifier:
             if not found_anchor:
                 continue
             for col in (8, 9, 10, 11, 12, 14, 15, 16, 17, 18):
-                ws.cell(r, col).value = None
+                self._set_value(ws, r, col, None)
             found += 1
         if found:
             self.log.info("   锚点行公式清空 %d 行", found)
 
     def _fix_fixed_amount_rows(self, ws):
         """重写固定金额行的行内公式，避免删行后残留旧行号。"""
-        keywords = [
+        formula_rows = [
             '四、计提保修金',
             '五、过程节点奖金',
             '六、资金占用费用',
             '七、局投资收益',
+        ]
+        tax_rows = [
             '十、增值税实际税负',
             '十一、税金及附加',
         ]
         COL_J, COL_L = 10, 12
         COL_O, COL_P, COL_Q, COL_R = 15, 16, 17, 18
         fixed = 0
-        for kw in keywords:
+        for kw in formula_rows:
             r = self._find_row(ws, kw)
             if not r:
                 continue
-            if kw != '十一、税金及附加':
-                ws.cell(r, 8).value = f"=SUM(H{r-1}:H{r-1})"
-                ws.cell(r, 9).value = f"=SUM(I{r-1}:I{r-1})"
-                ws.cell(r, 11).value = f"=SUM(K{r-1}:K{r-1})"
-                ws.cell(r, 14).value = f"=SUM(N{r-1}:N{r-1})"
-            ws.cell(r, COL_J).value = f"=H{r}+I{r}"
-            ws.cell(r, COL_L).value = f"=J{r}-K{r}"
-            ws.cell(r, COL_O).value = f"=L{r}-M{r}"
-            ws.cell(r, COL_P).value = f"=K{r}-N{r}"
-            ws.cell(r, COL_Q).value = f"=M{r}+O{r}"
-            ws.cell(r, COL_R).value = f"=M{r}+N{r}+O{r}+P{r}"
+            for col in (8, 9, 10, 11, 12, 14):
+                self._set_value(ws, r, col, None)
+            self._set_value(ws, r, COL_O, f"=0-M{r}")
+            self._set_value(ws, r, COL_P, 0)
+            self._set_value(ws, r, COL_Q, f"=M{r}+O{r}")
+            self._set_value(ws, r, COL_R, f"=M{r}+O{r}+P{r}")
+            fixed += 1
+        for kw in tax_rows:
+            r = self._find_row(ws, kw)
+            if not r:
+                continue
+            self._set_value(ws, r, COL_J, f"=H{r}+I{r}")
+            self._set_value(ws, r, COL_L, f"=J{r}-K{r}")
+            self._set_value(ws, r, COL_O, f"=L{r}-M{r}")
+            self._set_value(ws, r, COL_P, f"=K{r}-N{r}")
+            self._set_value(ws, r, COL_Q, f"=M{r}+O{r}")
+            self._set_value(ws, r, COL_R, f"=M{r}+N{r}+O{r}+P{r}")
             fixed += 1
         if fixed:
-            self.log.info("   固定金额行 O/P/Q/R 列公式重写 %d 行", fixed)
+            self.log.info("   固定金额/税费行公式重写 %d 行", fixed)
 
     def _fix_nine_formula(self, ws):
         """
@@ -293,9 +390,9 @@ class ExcelBeautifier:
         if not safe_rows:
             self.log.warning("   九、成本及费用合计 所有引用行均等于自身行，跳过")
             return
-        for col_idx in range(8, ws.max_column + 1):
+        for col_idx in range(8, COL_S):
             cl = get_column_letter(col_idx)
-            ws.cell(r_nine, col_idx).value = '=' + '+'.join(f'{cl}{r}' for r in safe_rows)
+            self._set_value(ws, r_nine, col_idx, '=' + '+'.join(f'{cl}{r}' for r in safe_rows))
         self.log.info("   九、成本及费用合计 强制重写（行%d，引用%s）", r_nine, safe_rows)
 
     def _fix_cost_total_formula(self, ws):
@@ -322,9 +419,9 @@ class ExcelBeautifier:
         if not refs:
             self.log.warning("   未能定位成本节小计，跳过三、成本合计重写")
             return
-        for col_idx in range(8, ws.max_column + 1):
+        for col_idx in range(8, COL_S):
             cl = get_column_letter(col_idx)
-            ws.cell(r_cost, col_idx).value = '=' + '+'.join(f'{cl}{r}' for r in refs)
+            self._set_value(ws, r_cost, col_idx, '=' + '+'.join(f'{cl}{r}' for r in refs))
         self.log.info("   三、成本合计 强制重写（行%d，引用%s）", r_cost, refs)
 
     def _fix_profit_formulas(self, ws):
@@ -337,14 +434,14 @@ class ExcelBeautifier:
         r_rate    = self._find_row(ws, '十三、利润率')
         if r_profit and r_nine:
             deduct = [r for r in [r_nine, r_vat, r_tax] if r and r != r_profit]
-            for col_idx in range(8, ws.max_column + 1):
+            for col_idx in range(8, COL_S):
                 cl = get_column_letter(col_idx)
-                ws.cell(r_profit, col_idx).value = f'={cl}{r6}' + ''.join(f'-{cl}{r}' for r in deduct)
+                self._set_value(ws, r_profit, col_idx, f'={cl}{r6}' + ''.join(f'-{cl}{r}' for r in deduct))
             self.log.info("   十二、利润 强制重写（行%d）", r_profit)
         if r_rate and r_profit:
-            for col_idx in range(8, ws.max_column + 1):
+            for col_idx in range(8, COL_S):
                 cl = get_column_letter(col_idx)
-                ws.cell(r_rate, col_idx).value = f'={cl}{r_profit}/{cl}{r6}'
+                self._set_value(ws, r_rate, col_idx, f'={cl}{r_profit}/{cl}{r6}')
             self.log.info("   十三、利润率 强制重写（行%d）", r_rate)
 
     def _rewrite_detail_row_formulas(self, ws):
@@ -365,7 +462,7 @@ class ExcelBeautifier:
         COL_J, COL_L = 10, 12
         COL_O, COL_P, COL_Q, COL_R = 15, 16, 17, 18
         fixed = 0
-        for r in range(8, ws.max_row + 1):
+        for r in range(11, ws.max_row + 1):
             d_val = ws.cell(r, 4).value
             m_val = ws.cell(r, 13).value
             # 只在“明细行”重写：D列有文本值 且 M列为数值
@@ -412,6 +509,10 @@ class ExcelBeautifier:
             '人工费小计', '分包工程小计', '材料费小计', '机械费小计',
             '其他直接费小计', '间接费小计', '安全费小计',
         ]
+        fixed_keywords = [
+            '四、计提保修金', '五、过程节点奖金', '六、资金占用费用',
+            '七、局投资收益', '八、研发费用',
+        ]
         protected_rows = {
             self._find_row(ws, '三、成本合计'),
             self._find_row(ws, '九、成本及费用合计'),
@@ -421,10 +522,11 @@ class ExcelBeautifier:
             self._find_row(ws, '十三、利润率'),
         }
         protected_rows.update(self._find_row(ws, kw) for kw in subtotal_keywords)
+        protected_rows.update(self._find_row(ws, kw) for kw in fixed_keywords)
         protected_rows = {r for r in protected_rows if r}
         target_cols = (10, 12, 15, 16, 17, 18)
         fixed = 0
-        for r in range(7, ws.max_row + 1):
+        for r in range(11, ws.max_row + 1):
             if r in protected_rows:
                 continue
             has_formula_trace = any(
@@ -436,12 +538,12 @@ class ExcelBeautifier:
             d_norm = self._norm(str(ws.cell(r, 4).value or ''))
             if '财务未列部分需增列' in d_norm:
                 continue
-            ws.cell(r, 10).value = f'=H{r}+I{r}'
-            ws.cell(r, 12).value = f'=J{r}-K{r}'
-            ws.cell(r, 15).value = f'=L{r}-M{r}'
-            ws.cell(r, 16).value = f'=K{r}-N{r}'
-            ws.cell(r, 17).value = f'=M{r}+O{r}'
-            ws.cell(r, 18).value = f'=M{r}+N{r}+O{r}+P{r}'
+            self._set_value(ws, r, 10, f'=H{r}+I{r}')
+            self._set_value(ws, r, 12, f'=J{r}-K{r}')
+            self._set_value(ws, r, 15, f'=L{r}-M{r}')
+            self._set_value(ws, r, 16, f'=K{r}-N{r}')
+            self._set_value(ws, r, 17, f'=M{r}+O{r}')
+            self._set_value(ws, r, 18, f'=M{r}+N{r}+O{r}+P{r}')
             fixed += 1
         if fixed:
             self.log.info("   行内公式归正 %d 行（清理残留旧行号）", fixed)
@@ -451,7 +553,7 @@ class ExcelBeautifier:
         兜底清理纯自引用公式（=A1 等情况），排除 SUM 范围（已由 _fix_cost_section_sums 等处理）。
         """
         cleared = 0
-        for r in range(1, ws.max_row + 1):
+        for r in range(11, ws.max_row + 1):
             for c in range(1, ws.max_column + 1):
                 cell = ws.cell(r, c)
                 if cell.value is None or not isinstance(cell.value, str) or not cell.value.startswith("="):
@@ -461,12 +563,12 @@ class ExcelBeautifier:
                 self_ref = f"{cl}{r}"
                 # 纯自引用
                 if formula_upper == f"={self_ref}":
-                    cell.value = 0
+                    self._set_value(ws, r, c, 0)
                     cleared += 1
                     continue
                 # 非 SUM 公式中包含自身单元格地址
                 if "SUM(" not in formula_upper and self_ref in formula_upper:
-                    cell.value = 0
+                    self._set_value(ws, r, c, 0)
                     cleared += 1
         if cleared:
             self.log.info("   兜底清理自引用 %d 个", cleared)
@@ -501,14 +603,14 @@ class ExcelBeautifier:
         r_yanfa = self._find_row(ws, '八、研发费用')
         r_nine  = self._find_row(ws, '九、成本及费用合计') or self._find_row(ws, '八、成本及费用合计')
         def _number_section(hdr, end_excl):
-            for r in range(hdr + 1, end_excl):
-                ws.cell(r, 1).value = None
+            for r in range(max(hdr + 1, 11), end_excl):
+                self._set_value(ws, r, 1, None)
             seq = 1
-            for r in range(hdr + 1, end_excl):
+            for r in range(max(hdr + 1, 11), end_excl):
                 d = ws.cell(r, 4).value
                 m = ws.cell(r, 13).value
                 if d and isinstance(m, (int, float)):
-                    ws.cell(r, 1).value = seq
+                    self._set_value(ws, r, 1, seq)
                     seq += 1
         for hdr_kw, sub_kw in SECTIONS:
             hdr = self._find_row(ws, hdr_kw)
@@ -610,6 +712,7 @@ class ExcelBeautifier:
 
     def _run_formula_repairs(self, ws):
         self._fix_cost_section_sums(ws)       # 强制重写1-7节 SUM + O/P/Q/R
+        self._fix_extended_section_sums(ws)   # 单独修复 S 列及之后的节内 SUM
         self._fix_yanfa_sum(ws)               # 强制重写研发 SUM
         self._fix_anchor_rows(ws)             # 强制重写锚点行 O/P/Q/R
         self._fix_fixed_amount_rows(ws)       # 强制重写固定金额行 O/P/Q/R
