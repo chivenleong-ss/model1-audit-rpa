@@ -79,6 +79,8 @@ class InvoiceMatcher:
                 con = row[30] if len(row) > 30 else None
                 status = row[36] if len(row) > 36 else None
                 rows.append({"_status": status, "_code": code, "_con": con, "_amt": amt})
+            
+            wb.close()
 
         if not rows:
             return {}
