@@ -38,7 +38,7 @@ class BenefitReporter:
     def _source_paths(result_dir: str) -> tuple[str, str]:
         return (
             os.path.join(result_dir, "5_中间汇总表_效益审核数据源.xlsx"),
-            os.path.join(result_dir, "合并表.xlsx"),
+            os.path.join(result_dir, "4_合并表.xlsx"),
         )
 
     def _validate_inputs(self, source_path: str) -> bool:
