@@ -416,9 +416,70 @@ def _pipeline(job_id: str, job_dir: str, voucher_path: str, detail_path: str, in
         _finish_job_error(job_id, str(exc), traceback.format_exc())
 
 
+# ================= 引入安全锁需要的库 =================
+import urllib.request
+import tkinter as tk
+from tkinter import simpledialog, messagebox
+
+def check_security():
+    # 隐藏弹窗背后的黑框
+    root = tk.Tk()
+    root.withdraw()
+    
+    # ================= 1. 时效性（到期锁死） =================
+    # 这里的 2026, 6, 1 代表 2026年6月1日过期，你可以随便改
+    expiry_date = datetime(2026, 6, 1) 
+    if datetime.now() > expiry_date:
+        messagebox.showerror("授权过期", "该审计模型试用期已过，请联系作者。")
+        sys.exit() # 直接关闭程序
+
+    # ================= 2. 远程遥控器 (防泄露) =================
+    # 【注意！】如果你之前的网址变了，请替换下面引号里的网址
+    control_url = "https://gitee.com/BenefitAuditSystem/config/blob/master/auth.txt"
+    try:
+        # 尝试去网上读取你的开关状态
+        response = urllib.request.urlopen(control_url, timeout=3)
+        status = response.read().decode('utf-8').strip()
+        
+        # 如果你把网上的字改成了 LOCKED，程序就打不开
+        if status != "ACTIVE":
+            messagebox.showerror("权限终止", "该版本已被原作者停用。")
+            sys.exit()
+    except Exception:
+        # 如果电脑没连网，这段代码默认放行，继续往下走
+        pass
+
+    # ================= 3. 动态密码 =================
+    # 密码规则：基础单词 Audit + 当前月份。比如5月份密码就是 Audit5
+    current_month = datetime.now().month
+    correct_password = f"BAS{current_month}" 
+    
+    # 弹出密码框让用户输入
+    user_input = simpledialog.askstring("身份验证", "请输入启动密码：", show='*')
+    if user_input != correct_password:
+        messagebox.showerror("访问被拒", "密码错误！")
+        sys.exit()
+        
+    root.destroy() # 验证全部通过，关闭安全门，准备启动主程序
+
+
 if __name__ == "__main__":
+    # 1. 强制执行安全检查（密码与远程开关）
+    check_security()
+    
     print("\n  " + "─" * 58)
     print("  效益审核自动填报平台 已启动")
-    print("  访问地址：http://localhost:5000")
+    print("  正在自动为您打开网页...")
     print("  " + "─" * 58 + "\n")
+
+    # ================= 新增：自动打开网页黑科技 =================
+    import threading
+    import webbrowser
+    
+    # 设定一个定时器，在程序启动 1.5 秒后，自动打开默认浏览器访问此网址
+    # 延迟 1.5 秒是为了给 Flask 服务器准备运行的时间
+    threading.Timer(1.5, lambda: webbrowser.open('http://localhost:5000')).start()
+    # ==========================================================
+
+    # 2. 启动原有的网页服务
     app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
