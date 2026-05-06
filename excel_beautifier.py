@@ -28,7 +28,7 @@ class ExcelBeautifier:
         self.result_dir  = result_dir
         self.log         = logger
         self.input_path  = os.path.join(result_dir, "自动填报完成_效益审核表.xlsx")
-        self.output_path = os.path.join(result_dir, "效益审核表（已填）.xlsx")
+        self.output_path = os.path.join(result_dir, "最终完美交付版_效益审核表.xlsx")
 
     @staticmethod
     def _set_value(ws, row: int, col: int, value):

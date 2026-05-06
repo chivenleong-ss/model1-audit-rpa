@@ -106,6 +106,8 @@ class IntermediateTableBuilder:
                 doc_no = _norm_text(row.get('中台单据号', '')).upper()
                 contract = _norm_text(row.get('合同编码', row.get('合同', '')))
 
+                balance_dir = _norm_text(row.get('余额方向-本位币', ''))
+
                 debit = _num(row.get('借方本位币金额', 0))
                 credit = _num(row.get('贷方本位币金额', 0))
                 balance = _num(row.get('余额（本币）', 0))
@@ -127,12 +129,18 @@ class IntermediateTableBuilder:
                 elif '原材料' in gl_text_path:
                     if contract != '' and doc_no.startswith('JSD'):
                         cat, amt = '(三)材料费', debit
-                    elif doc_no.startswith('DBD') and _has_internal_counterparty(opp_gl_text_path):
-                        cat, sub_cat, amt = '(三)材料费', '材料调入', debit
+                    # 修改此处的判定逻辑：对方科目为内部存款/往来时，按余额方向细分
+                    elif _has_internal_counterparty(opp_gl_text_path):
+                        if '贷' in balance_dir:
+                            # 余额方向为贷方 -> 归入“材料调出”，金额取借方金额(debit)
+                            cat, sub_cat, amt = '(三)材料费', '材料调出', debit
+                        elif doc_no.startswith('DBD'):
+                            # 非贷方，且单据为DBD -> 归入“材料调入”，金额取借方金额(debit)
+                            cat, sub_cat, amt = '(三)材料费', '材料调入', debit
                     elif _is_main_or_aux_material(gl_text_path) and doc_no.startswith('XSD'):
-                        cat, sub_cat, amt = '(三)材料费', '材料调出+XSD', -credit
+                        cat, sub_cat, amt = '(三)材料费', '材料调出+XSD', credit
                     elif _is_main_or_aux_material(gl_text_path) and doc_no.startswith('SQD'):
-                        cat, sub_cat, amt = '(三)材料费', '材料调出+SQD', -credit
+                        cat, sub_cat, amt = '(三)材料费', '材料调出+SQD', credit
 
                 elif '合同履约成本\\工程施工成本\\直接材料费' in gl_text_path:
                     # 1. 如果包含其他应收款的 CFK
