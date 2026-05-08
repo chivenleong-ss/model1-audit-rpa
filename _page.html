@@ -342,7 +342,6 @@ main { max-width: 1100px; margin: auto; padding: 32px 24px 80px; }
   font-weight: 600;
 }
 
-/* ── Buttons (Modified to match image_94f572.jpg style) ───────────────────────────────────── */
 /* ── Buttons ───────────────────────────────────── */
 .runrow {
   display: flex;
@@ -362,11 +361,11 @@ main { max-width: 1100px; margin: auto; padding: 32px 24px 80px; }
 }
 .btn {
   border: 1px solid transparent; 
-  border-radius: 999px; /* 🌟 核心修改：大圆角，变成胶囊形 */
+  border-radius: 999px; 
   cursor: pointer;
   font-weight: 600;
   font-size: 0.88rem;
-  padding: 9px 26px; /* 🌟 增加左右宽度，显得更饱满 */
+  padding: 9px 26px; 
   transition: all 0.2s ease;
   font-family: inherit;
   display: inline-flex;
@@ -376,7 +375,6 @@ main { max-width: 1100px; margin: auto; padding: 32px 24px 80px; }
   white-space: nowrap;
 }
 
-/* 🌟 主要按钮：取消渐变，改为单色亮蓝 */
 .btn-primary {
   background: #0ea5e9; 
   color: #ffffff;
@@ -388,19 +386,17 @@ main { max-width: 1100px; margin: auto; padding: 32px 24px 80px; }
   box-shadow: 0 6px 16px rgba(14, 165, 233, 0.3);
 }
 
-/* 🌟 次要按钮：透明背景 + 亮蓝色边框文字 */
 .btn-secondary {
   background: transparent;
   border-color: #0ea5e9;
   color: #0ea5e9;
 }
 .btn-secondary:hover:not(:disabled) {
-  background: #f0f9ff; /* 悬浮时带一点淡淡的蓝色背景 */
+  background: #f0f9ff; 
   border-color: #0284c7;
   color: #0284c7;
 }
 
-/* 🌟 警示/功能按钮：单色橙黄 */
 .btn-amber {
   background: #f59e0b;
   color: #ffffff;
@@ -410,6 +406,30 @@ main { max-width: 1100px; margin: auto; padding: 32px 24px 80px; }
   transform: translateY(-1px);
   background: #d97706;
   box-shadow: 0 6px 16px rgba(245, 158, 11, 0.3);
+}
+
+/* 🌟 新增：暂停按钮样式（橙色线框） */
+.btn-warning-outline {
+  background: transparent;
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+.btn-warning-outline:hover:not(:disabled) {
+  background: #fffbeb;
+  border-color: #d97706;
+  color: #d97706;
+}
+
+/* 🌟 新增：继续按钮样式（绿色线框） */
+.btn-success-outline {
+  background: transparent;
+  border-color: #10b981;
+  color: #10b981;
+}
+.btn-success-outline:hover:not(:disabled) {
+  background: #ecfdf5;
+  border-color: #059669;
+  color: #059669;
 }
 
 .btn:disabled {
@@ -986,6 +1006,11 @@ input[type=checkbox] {
                 onclick="handleAction('download_merge')">⬇ 下载合并表</button>
         <button class="btn btn-amber"
                 onclick="handleAction('push_audit')">📤 推送逻辑校验</button>
+        
+        <button class="btn btn-warning-outline" id="pauseBatchBtn" style="display:none;" onclick="togglePauseBatch()">
+          ⏸ 暂停填报
+        </button>
+
         <button class="btn btn-primary" id="startBtn" onclick="startBatch()">
           ▶ 启动自动化填报
         </button>
@@ -1011,6 +1036,11 @@ input[type=checkbox] {
       <div class="file-list" id="logicFileList"></div>
       <div class="runrow">
         <span class="hint" id="logicUploadHint">⏳ 系统引擎待命</span>
+
+        <button class="btn btn-warning-outline" id="pauseLogicBtn" style="display:none;" onclick="togglePauseLogic()">
+          ⏸ 暂停审核
+        </button>
+
         <button class="btn btn-amber" id="logicStartBtn"
                 onclick="startLogicAudit()" disabled>
           🔬 执行穿透审核
@@ -1050,6 +1080,10 @@ const S = {
   files: [], batchId: '', groups: [],
   cards: new Map(), pollers: new Map(), logIndex: new Map()
 }
+
+// 🌟 全局暂停状态控制变量
+let isBatchPaused = false;
+let isLogicPaused = false;
 
 function esc(v){ return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
 
@@ -1154,9 +1188,49 @@ function toggleAllGroups(masterCb){
   })
 }
 
+// 🌟 新增：切换自动填报暂停状态
+async function togglePauseBatch() {
+  if (S.pollers.size === 0) return;
+  const btn = document.getElementById('pauseBatchBtn');
+  btn.disabled = true;
+  try {
+    // 遍历当前活跃的任务，调用后端的暂停接口
+    const promises = Array.from(S.pollers.keys()).map(jobId => 
+      fetch('/api/pause/' + jobId, {method: 'POST'})
+    );
+    await Promise.all(promises);
+
+    isBatchPaused = !isBatchPaused;
+    
+    // 切换按钮UI和文字
+    btn.innerHTML = isBatchPaused ? '▶ 继续填报' : '⏸ 暂停填报';
+    btn.className = isBatchPaused ? 'btn btn-success-outline' : 'btn btn-warning-outline';
+    
+    // 暂停/恢复前端的进度条动画
+    document.querySelectorAll('.fill').forEach(el => {
+      el.style.animationPlayState = isBatchPaused ? 'paused' : 'running';
+    });
+    document.querySelectorAll('.status.running').forEach(el => {
+      el.style.animationPlayState = isBatchPaused ? 'paused' : 'running';
+    });
+  } catch (err) {
+    console.error("暂停请求异常：", err);
+  }
+  btn.disabled = false;
+}
+
 async function startBatch(){
   const btn = document.getElementById('startBtn')
+  const pauseBtn = document.getElementById('pauseBatchBtn')
+  
   if(btn){ btn.disabled=true; btn.innerHTML='⚙️ 引擎运转中...' }
+  if(pauseBtn){
+    pauseBtn.style.display = 'inline-flex';
+    isBatchPaused = false;
+    pauseBtn.innerHTML = '⏸ 暂停填报';
+    pauseBtn.className = 'btn btn-warning-outline';
+  }
+
   const fd = new FormData()
   fd.append('action','start'); fd.append('batch_id',S.batchId)
   try{
@@ -1170,12 +1244,30 @@ async function startBatch(){
   }catch(err){
     alert(err.message)
     if(btn){ btn.disabled=false; btn.innerHTML='▶ 启动自动化填报' }
+    if(pauseBtn) pauseBtn.style.display = 'none';
   }
 }
 
 async function pollJob(jobId,pc){
   let data
   try{ const r = await fetch('/api/status/'+jobId); data = await r.json() }catch(_){ return }
+  
+  // 🌟 同步后端的暂停状态，防止多开页面数据不同步
+  if (data.paused !== undefined) {
+    const pBtn = document.getElementById('pauseBatchBtn');
+    if (data.paused && !isBatchPaused) {
+      isBatchPaused = true;
+      pBtn.innerHTML = '▶ 继续填报';
+      pBtn.className = 'btn btn-success-outline';
+      document.querySelectorAll('.status.running, .fill').forEach(el => el.style.animationPlayState = 'paused');
+    } else if (!data.paused && isBatchPaused) {
+      isBatchPaused = false;
+      pBtn.innerHTML = '⏸ 暂停填报';
+      pBtn.className = 'btn btn-warning-outline';
+      document.querySelectorAll('.status.running, .fill').forEach(el => el.style.animationPlayState = 'running');
+    }
+  }
+
   const card = S.cards.get(pc); if(!card) return
   const badge = card.querySelector('[data-role="status"]')
   const statusZh = {queued:'排队中',running:'计算中',done:'渲染完成',error:'异常中止'}[data.status]||data.status
@@ -1196,6 +1288,9 @@ async function pollJob(jobId,pc){
       if(sh) sh.textContent='✅ 运算集群已停机，交付件生成完毕。'
       const startBtn = document.getElementById('startBtn')
       if(startBtn){ startBtn.innerHTML='✔ 任务全量完成'; startBtn.disabled=true }
+      // 🌟 任务全部结束后隐藏暂停按钮
+      const pBtn = document.getElementById('pauseBatchBtn')
+      if(pBtn) pBtn.style.display = 'none'
     }
   }
 }
@@ -1258,10 +1353,32 @@ function renderLogicList(){
   if(hint) hint.textContent = len?`📌 系统已锁定 ${len} 个待审任务`:'⏳ 等待调令'
 }
 
+// 🌟 新增：切换逻辑审核暂停状态
+function togglePauseLogic() {
+  isLogicPaused = !isLogicPaused;
+  const btn = document.getElementById('pauseLogicBtn');
+  btn.innerHTML = isLogicPaused ? '▶ 继续审核' : '⏸ 暂停审核';
+  btn.className = isLogicPaused ? 'btn btn-success-outline' : 'btn btn-warning-outline';
+  
+  // 同步暂停旋转的 loading 动画
+  document.querySelectorAll('.spinner').forEach(el => {
+    el.style.animationPlayState = isLogicPaused ? 'paused' : 'running';
+  });
+}
+
 async function startLogicAudit(){
   if(!logicFiles.length&&!pushedProjects.length) return
   const btn = document.getElementById('logicStartBtn')
+  const pauseBtn = document.getElementById('pauseLogicBtn')
+
   if(btn){ btn.disabled=true; btn.innerHTML='🔄 唤醒核心审计模块...' }
+  if(pauseBtn){
+    pauseBtn.style.display = 'inline-flex';
+    isLogicPaused = false;
+    pauseBtn.innerHTML = '⏸ 暂停审核';
+    pauseBtn.className = 'btn btn-warning-outline';
+  }
+
   const fd = new FormData()
   logicFiles.forEach(f=>fd.append('files',f))
   fd.append('pushed_projects',JSON.stringify(pushedProjects))
@@ -1292,13 +1409,18 @@ async function startLogicAudit(){
       })
       if(resultBox) resultBox.innerHTML=html
       resultPanel?.scrollIntoView({behavior:'smooth'})
-      data.data.forEach((proj,idx)=>animateAuditSteps(idx,proj))
+      
+      // 🌟 使用 Promise.all 确保所有条目的动画执行完毕再隐藏暂停按钮
+      await Promise.all(data.data.map((proj,idx) => animateAuditSteps(idx,proj)));
+
     } else {
       alert('❌ 系统阻断：'+data.error)
     }
-  }catch(_){ alert('🚨 网络链路异常！')
+  }catch(_){ 
+    alert('🚨 网络链路异常！')
   }finally{
     if(btn){ btn.disabled=false; btn.innerHTML='🔬 重置并再次校验' }
+    if(pauseBtn) pauseBtn.style.display = 'none'; // 任务彻底完成后隐藏暂停按钮
   }
 }
 
@@ -1309,13 +1431,25 @@ async function animateAuditSteps(idx,proj){
   if(statusBadge){ statusBadge.className='status running'; statusBadge.textContent='解析规则中...' }
   if(proj.details&&container){
     for(let i=0;i<proj.details.length;i++){
+      // 🌟 插入拦截器：如果点击了暂停，则在这里原地循环挂起
+      while (isLogicPaused) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+
       const step=proj.details[i]
       const el=document.createElement('div')
       el.className='audit-step checking'
       el.innerHTML=`<span class="spinner">⚙</span><b>${esc(step.rule)}</b><span class="step-desc">[SYS] 提取内存快照...</span>`
       container.appendChild(el)
       el.scrollIntoView?.({behavior:'smooth',block:'nearest'})
+      
       await new Promise(r=>setTimeout(r,Math.floor(Math.random()*300)+200))
+      
+      // 🌟 二次拦截器：防止在 setTimeout 的极短延迟期间发生暂停
+      while (isLogicPaused) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+
       el.className=`audit-step ${step.status}`
       const icon=step.status==='pass'?'✅':(step.status==='fail'?'❌':'⚠️')
       el.innerHTML=`<span>${icon}</span><b>${esc(step.rule)}</b><span class="step-desc" style="opacity:.8">${esc(step.desc)}</span>`

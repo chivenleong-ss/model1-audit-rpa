@@ -328,7 +328,7 @@ class BenefitSheetWriter:
         missing = required_cols - set(df4.columns)
         if missing:
             self.log.warning("   ⚠️ 合并表缺少字段，跳过 B/N/T 匹配：%s", "、".join(sorted(missing)))
-            return {}, {}, {}
+            return {}, {}, {}, {}, {}
 
         ven_col = '供应商名称' if '供应商名称' in df4.columns else ('供应商描述' if '供应商描述' in df4.columns else None)
 
@@ -365,9 +365,29 @@ class BenefitSheetWriter:
         vat['_v'] = vat['供应商'].fillna(0).apply(lambda value: str(int(float(value))) if pd.notna(value) and value else '')
         vat['_c'] = vat['合同'].fillna('').astype(str).str.strip()
         vat_lkp = dict(vat.groupby(['_v', '_c'])['借方本位币金额'].sum())
-        return vendor_lkp, pay_lkp, vat_lkp
 
-    def fill_per_row_cols(self, ws, vendor_lkp, pay_lkp, vat_lkp):
+        safe_mask = (
+            df4['总账科目长文本'].fillna('').str.contains('专项储备') &
+            df4['总账科目长文本'].fillna('').str.contains('安全生产费') &
+            df4['总账科目长文本'].fillna('').str.contains('发生数')
+        )
+        safe_df = df4[safe_mask].copy()
+        safe_df['_v'] = safe_df['供应商'].fillna(0).apply(lambda value: str(int(float(value))) if pd.notna(value) and value else '')
+        safe_df['_c'] = safe_df['合同'].fillna('').astype(str).str.strip()
+        safe_lkp = dict(safe_df.groupby(['_v', '_c'])['借方本位币金额'].sum())
+
+        rd_mask = (
+            df4['总账科目长文本'].fillna('').str.contains('研发支出') &
+            df4['总账科目长文本'].fillna('').str.contains('租赁及运行维护费')
+        )
+        rd_df = df4[rd_mask].copy()
+        rd_df['_v'] = rd_df['供应商'].fillna(0).apply(lambda value: str(int(float(value))) if pd.notna(value) and value else '')
+        rd_df['_c'] = rd_df['合同'].fillna('').astype(str).str.strip()
+        rd_lkp = dict(rd_df.groupby(['_v', '_c'])['借方本位币金额'].sum())
+
+        return vendor_lkp, pay_lkp, vat_lkp, safe_lkp, rd_lkp
+
+    def fill_per_row_cols(self, ws, vendor_lkp, pay_lkp, vat_lkp, safe_lkp, rd_lkp):
         skip_words = {
             '人工费小计', '分包工程小计', '材料费小计', '机械费小计', '其他直接费小计',
             '间接费小计', '安全费小计', '财务未列部分需增列', '成本合计', '项目效益',
@@ -406,6 +426,15 @@ class BenefitSheetWriter:
                     cell = ws.cell(row, COL_N)
                     self._set_value(ws, row, COL_N, round(float(vat), 2))
                     cell.number_format = '#,##0.00'
+                
+                safe_add = safe_lkp.get((code, c_norm), 0)
+                rd_add = rd_lkp.get((code, c_norm), 0)
+                total_m_add = safe_add + rd_add
+                if total_m_add != 0:
+                    current_m = ws.cell(row, COL_M).value or 0
+                    new_m = round(float(current_m) + float(total_m_add), 2)
+                    self._set_value(ws, row, COL_M, new_m)
+                    ws.cell(row, COL_M).number_format = '#,##0.00'
 
     def apply_invoice_match(self, ws, result_dir: str, invoice_ledger_path: str | None):
         invoice_path = invoice_ledger_path

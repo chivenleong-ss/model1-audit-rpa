@@ -75,8 +75,33 @@ class BenefitReporter:
 
     def _prepare_lookup_tables(self, df4):
         if df4.empty:
-            return {}, {}, {}
+            return {}, {}, {}, {}, {}
         return self.writer.build_lookups(df4)
+
+    def _apply_deduction_rules(self, df):
+        """动态生成负数抵减项行"""
+        # 将原本的 .str.contains 模糊匹配修改为 == 精确匹配
+        # 并加上 .astype(str).str.strip() 过滤潜在的首尾空格，防止 ZGD- 等其他前缀被误抓取
+        
+        safe_labor = df[(df['成本_财务大类'] == '(七)安全费') & (df['细分科目'].fillna('').astype(str).str.strip() == '安全生产-人工费')]['最终发生额'].sum()
+        safe_vendor = df[(df['成本_财务大类'] == '(七)安全费') & (df['细分科目'].fillna('').astype(str).str.strip() == '安全生产-分包工程')]['最终发生额'].sum()
+        safe_mach = df[(df['成本_财务大类'] == '(七)安全费') & (df['细分科目'].fillna('').astype(str).str.strip() == '安全生产-机械使用')]['最终发生额'].sum()
+        
+        rd_mach = df[(df['成本_财务大类'] == '研发支出') & (df['细分科目'].fillna('').astype(str).str.strip() == '研发费用-机械租赁')]['最终发生额'].sum()
+
+        deductions = []
+        if safe_labor != 0:
+            deductions.append({'成本_财务大类': '(一)人工费', '客商名称': '减：安全生产-人工费', '合同编码': '', '最终发生额': -safe_labor})
+        if safe_vendor != 0:
+            deductions.append({'成本_财务大类': '(二)分包工程', '客商名称': '减：安全生产-分包工程', '合同编码': '', '最终发生额': -safe_vendor})
+        if safe_mach != 0:
+            deductions.append({'成本_财务大类': '(四)机械租赁费', '客商名称': '减：安全生产-机械使用', '合同编码': '', '最终发生额': -safe_mach})
+        if rd_mach != 0:
+            deductions.append({'成本_财务大类': '(四)机械租赁费', '客商名称': '减：研发费用-机械租赁', '合同编码': '', '最终发生额': -rd_mach})
+
+        if deductions:
+            df = pd.concat([df, pd.DataFrame(deductions)], ignore_index=True)
+        return df
 
     @staticmethod
     def _insert_plan():
@@ -192,10 +217,10 @@ class BenefitReporter:
             ws.cell(tax_row, 13).number_format = '#,##0.00'
             self.log.info("   ✅ 税金及附加 行%d M=%.2f", tax_row, tax_amt)
 
-    def _fill_lookup_columns(self, ws, df4, vendor_lkp, pay_lkp, vat_lkp):
+    def _fill_lookup_columns(self, ws, df4, vendor_lkp, pay_lkp, vat_lkp, safe_lkp, rd_lkp):
         if not df4.empty:
-            self.writer.fill_per_row_cols(ws, vendor_lkp, pay_lkp, vat_lkp)
-        self.log.info("   ✅ B/N/T 列匹配填写完成")
+            self.writer.fill_per_row_cols(ws, vendor_lkp, pay_lkp, vat_lkp, safe_lkp, rd_lkp)
+        self.log.info("   ✅ B/N/T 及 M 列增列调整 匹配填写完成")
 
     def _finalize_workbook(self, wb, ws, output_path: str):
         self.writer.apply_invoice_match(ws, self.result_dir, self.invoice_ledger_path)
@@ -212,16 +237,16 @@ class BenefitReporter:
         self.log.info("📝 填报引擎 v6 启动（第三层拆分版）...")
         try:
             df, df4 = self._load_fill_data(source_path, merged_path)
-            vendor_lkp, pay_lkp, vat_lkp = self._prepare_lookup_tables(df4)
+            
+            df = self._apply_deduction_rules(df)
+            
+            vendor_lkp, pay_lkp, vat_lkp, safe_lkp, rd_lkp = self._prepare_lookup_tables(df4)
             wb, ws = self.locator.load_template_sheet(self.template_path)
 
             self.locator.fill_header_fields(ws, df, df4)
-            # ── 第1步：插入数据行 ──
             self._insert_category_rows(ws, df)
-            # ── 第2步：填写固定项金额（必须在公式修复之前，否则公式会引用空值行号） ──
             self._fill_fixed_items(ws, df)
-            self._fill_lookup_columns(ws, df4, vendor_lkp, pay_lkp, vat_lkp)
-            # ── 第3步：修复所有公式（此时所有数据已就位，基于当前行号重写） ──
+            self._fill_lookup_columns(ws, df4, vendor_lkp, pay_lkp, vat_lkp, safe_lkp, rd_lkp)
             self._repair_formulas(ws)
 
             out = os.path.join(self.result_dir, "自动填报完成_效益审核表.xlsx")

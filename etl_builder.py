@@ -166,6 +166,13 @@ class IntermediateTableBuilder:
                         cat, sub_cat, amt = '(三)材料费', '其他', debit
                     elif contract != '' and doc_no.startswith('JSD'):
                         cat, amt = '(三)材料费', debit
+                    # 8. 【新增】ZGD 单据暂估兜底：只要是直接材料费且是 ZGD 单据，无条件计入材料费
+                    elif doc_no.startswith('ZGD'):
+                        cat = '(三)材料费'
+                        # 如果有对方科目就用对方科目(如：周转材料)，没有就叫材料暂估
+                        sub_cat = opp_gl_text if opp_gl_text else '其他'
+                        amt = debit
+                    
 
                 # 机械费
                 elif '机械使用费' in gl_text_path:
