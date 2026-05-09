@@ -51,6 +51,7 @@ class IntermediateTableBuilder:
                 offset_row['细分科目'] = subcat
                 offset_row['客商名称'] = subcat
                 offset_row['合同编码'] = ''
+                offset_row['中台单据号'] = ''  # <--- 【新增】：必须清空单据号，防止被 ZGD 逻辑误伤
                 offset_row['最终发生额'] = -amount
                 return offset_row
 
@@ -272,6 +273,7 @@ class IntermediateTableBuilder:
                         offset_row['细分科目'] = offset_subcat
                         offset_row['客商名称'] = offset_subcat
                         offset_row['合同编码'] = ''
+                        offset_row['中台单据号'] = ''  # <--- 【新增】：必须清空单据号，切断与原ZGD单据的联系
                         offset_row['最终发生额'] = -amt
                         offset_records.append(offset_row)
 
