@@ -40,6 +40,11 @@ class BenefitSheetWriter:
         '材料库存', '材料调入', '材料调出', '材料调入+CFK',
         '研发支出', '研发费用'
     }
+    _SECTION_HEADER_MAP = {
+        '(一)人工费': 'labor',
+        '(二)分包工程': 'vendor',
+        '(四)机械租赁费': 'machine',
+    }
 
     def __init__(self, logger, locator):
         self.log = logger
@@ -52,6 +57,21 @@ class BenefitSheetWriter:
             return False
         ws.cell(row, col).value = value
         return True
+
+    @staticmethod
+    def _normalize_code(value) -> str:
+        if value is None:
+            return ''
+        text = str(value).strip()
+        if text in ('', 'nan', 'None'):
+            return ''
+        try:
+            num = float(text.replace(',', ''))
+            if num.is_integer():
+                return str(int(num))
+        except Exception:
+            pass
+        return text
 
     @staticmethod
     def copy_fill(src_cell, dst_cell):
@@ -367,9 +387,9 @@ class BenefitSheetWriter:
         vat_lkp = dict(vat.groupby(['_v', '_c'])['借方本位币金额'].sum())
 
         safe_mask = (
-            df4['总账科目长文本'].fillna('').str.contains('专项储备') &
-            df4['总账科目长文本'].fillna('').str.contains('安全生产费') &
-            df4['总账科目长文本'].fillna('').str.contains('发生数')
+            df4['总账科目长文本'].fillna('').str.contains('专项储备')
+            & df4['总账科目长文本'].fillna('').str.contains('安全生产费')
+            & df4['总账科目长文本'].fillna('').str.contains('发生数')
         )
         safe_df = df4[safe_mask].copy()
         safe_df['_v'] = safe_df['供应商'].fillna(0).apply(lambda value: str(int(float(value))) if pd.notna(value) and value else '')
@@ -377,8 +397,7 @@ class BenefitSheetWriter:
         safe_lkp = dict(safe_df.groupby(['_v', '_c'])['借方本位币金额'].sum())
 
         rd_mask = (
-            df4['总账科目长文本'].fillna('').str.contains('研发支出') &
-            df4['总账科目长文本'].fillna('').str.contains('租赁及运行维护费')
+            df4['总账科目长文本'].fillna('').str.contains(r'研发支出\\租赁及运行维护费', regex=True)
         )
         rd_df = df4[rd_mask].copy()
         rd_df['_v'] = rd_df['供应商'].fillna(0).apply(lambda value: str(int(float(value))) if pd.notna(value) and value else '')
@@ -393,18 +412,23 @@ class BenefitSheetWriter:
             '间接费小计', '安全费小计', '财务未列部分需增列', '成本合计', '项目效益',
             '成本及费用合计', '增值税', '税金及附加', '利润', '保修金', '节点奖'
         }
+        current_section = None
         for row in range(11, ws.max_row + 1):
+            b_val = ws.cell(row, COL_B).value
             d_val = ws.cell(row, COL_D).value
             m_val = ws.cell(row, COL_M).value
             c_val = ws.cell(row, COL_C).value
+            d_norm = self.locator.norm(str(d_val or ''))
+            current_section = self._SECTION_HEADER_MAP.get(d_norm, current_section)
             if not d_val or not isinstance(m_val, (int, float)):
                 continue
             if any(word in self.locator.norm(str(d_val)) for word in skip_words):
                 continue
 
-            d_norm = self.locator.norm(str(d_val))
             c_norm = self.locator.norm(str(c_val or ''))
-            code = vendor_lkp.get((d_norm, c_norm)) or vendor_lkp.get((d_norm, ''), '')
+            code = self._normalize_code(b_val)
+            if not code:
+                code = vendor_lkp.get((d_norm, c_norm)) or vendor_lkp.get((d_norm, ''), '')
 
             if not code and d_norm in VENDOR_SHORTNAME_MAP:
                 mapped = VENDOR_SHORTNAME_MAP[d_norm]
@@ -426,14 +450,15 @@ class BenefitSheetWriter:
                     cell = ws.cell(row, COL_N)
                     self._set_value(ws, row, COL_N, round(float(vat), 2))
                     cell.number_format = '#,##0.00'
-                
-                safe_add = safe_lkp.get((code, c_norm), 0)
-                rd_add = rd_lkp.get((code, c_norm), 0)
-                total_m_add = safe_add + rd_add
-                if total_m_add != 0:
+
+                m_add = 0.0
+                if current_section in {'labor', 'vendor', 'machine'}:
+                    m_add += float(safe_lkp.get((code, c_norm), 0) or 0)
+                if current_section == 'machine':
+                    m_add += float(rd_lkp.get((code, c_norm), 0) or 0)
+                if m_add != 0:
                     current_m = ws.cell(row, COL_M).value or 0
-                    new_m = round(float(current_m) + float(total_m_add), 2)
-                    self._set_value(ws, row, COL_M, new_m)
+                    self._set_value(ws, row, COL_M, round(float(current_m) + m_add, 2))
                     ws.cell(row, COL_M).number_format = '#,##0.00'
 
     def apply_invoice_match(self, ws, result_dir: str, invoice_ledger_path: str | None):

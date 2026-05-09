@@ -20,7 +20,13 @@ import pandas as pd
 from benefit_reporter_aggregator import BenefitDataAggregator
 from benefit_reporter_template import MATERIAL_ROW_ALIASES, BenefitTemplateLocator
 from benefit_reporter_writer import BenefitSheetWriter
-from project_config import MATERIAL_FIXED_SUBCATS
+from project_config import (
+    DRAFT_DEDUCTION_EXCLUDE_DOC_PREFIXES,
+    DRAFT_DEDUCTION_EXCLUDE_SUBCAT_PREFIXES,
+    MATERIAL_FIXED_SUBCATS,
+    RESEARCH_DEDUCTION_RULES,
+    SAFETY_DEDUCTION_RULES,
+)
 
 
 class BenefitReporter:
@@ -80,24 +86,34 @@ class BenefitReporter:
 
     def _apply_deduction_rules(self, df):
         """动态生成负数抵减项行"""
-        # 将原本的 .str.contains 模糊匹配修改为 == 精确匹配
-        # 并加上 .astype(str).str.strip() 过滤潜在的首尾空格，防止 ZGD- 等其他前缀被误抓取
-        
-        safe_labor = df[(df['成本_财务大类'] == '(七)安全费') & (df['细分科目'].fillna('').astype(str).str.strip() == '安全生产-人工费')]['最终发生额'].sum()
-        safe_vendor = df[(df['成本_财务大类'] == '(七)安全费') & (df['细分科目'].fillna('').astype(str).str.strip() == '安全生产-分包工程')]['最终发生额'].sum()
-        safe_mach = df[(df['成本_财务大类'] == '(七)安全费') & (df['细分科目'].fillna('').astype(str).str.strip() == '安全生产-机械使用')]['最终发生额'].sum()
-        
-        rd_mach = df[(df['成本_财务大类'] == '研发支出') & (df['细分科目'].fillna('').astype(str).str.strip() == '研发费用-机械租赁')]['最终发生额'].sum()
+        # 最终业务口径：
+        # 1. 只针对明确允许抵减的细分科目生成“减：”行
+        # 2. SQD 单据、ZGD-* 专项行保留单列，不并入通用抵减
+        subcat_series = df['细分科目'].fillna('').astype(str).str.strip()
+        doc_series = df['中台单据号'].fillna('').astype(str).str.strip().str.upper() if '中台单据号' in df.columns else pd.Series('', index=df.index)
+
+        ordinary_mask = ~subcat_series.str.startswith(DRAFT_DEDUCTION_EXCLUDE_SUBCAT_PREFIXES)
+        non_special_doc_mask = ~doc_series.str.startswith(DRAFT_DEDUCTION_EXCLUDE_DOC_PREFIXES)
+        eligible_mask = ordinary_mask & non_special_doc_mask
 
         deductions = []
-        if safe_labor != 0:
-            deductions.append({'成本_财务大类': '(一)人工费', '客商名称': '减：安全生产-人工费', '合同编码': '', '最终发生额': -safe_labor})
-        if safe_vendor != 0:
-            deductions.append({'成本_财务大类': '(二)分包工程', '客商名称': '减：安全生产-分包工程', '合同编码': '', '最终发生额': -safe_vendor})
-        if safe_mach != 0:
-            deductions.append({'成本_财务大类': '(四)机械租赁费', '客商名称': '减：安全生产-机械使用', '合同编码': '', '最终发生额': -safe_mach})
-        if rd_mach != 0:
-            deductions.append({'成本_财务大类': '(四)机械租赁费', '客商名称': '减：研发费用-机械租赁', '合同编码': '', '最终发生额': -rd_mach})
+        for subcat, (target_cat, deduction_name) in SAFETY_DEDUCTION_RULES.items():
+            amount = df[
+                (df['成本_财务大类'] == '(七)安全费')
+                & (subcat_series == subcat)
+                & eligible_mask
+            ]['最终发生额'].sum()
+            if amount != 0:
+                deductions.append({'成本_财务大类': target_cat, '客商名称': deduction_name, '合同编码': '', '最终发生额': -amount})
+
+        for subcat, (target_cat, deduction_name) in RESEARCH_DEDUCTION_RULES.items():
+            amount = df[
+                (df['成本_财务大类'] == '研发支出')
+                & (subcat_series == subcat)
+                & eligible_mask
+            ]['最终发生额'].sum()
+            if amount != 0:
+                deductions.append({'成本_财务大类': target_cat, '客商名称': deduction_name, '合同编码': '', '最终发生额': -amount})
 
         if deductions:
             df = pd.concat([df, pd.DataFrame(deductions)], ignore_index=True)
@@ -220,7 +236,7 @@ class BenefitReporter:
     def _fill_lookup_columns(self, ws, df4, vendor_lkp, pay_lkp, vat_lkp, safe_lkp, rd_lkp):
         if not df4.empty:
             self.writer.fill_per_row_cols(ws, vendor_lkp, pay_lkp, vat_lkp, safe_lkp, rd_lkp)
-        self.log.info("   ✅ B/N/T 及 M 列增列调整 匹配填写完成")
+        self.log.info("   ✅ B/N/T 列及安全生产/研发机械费 M列回加完成")
 
     def _finalize_workbook(self, wb, ws, output_path: str):
         self.writer.apply_invoice_match(ws, self.result_dir, self.invoice_ledger_path)

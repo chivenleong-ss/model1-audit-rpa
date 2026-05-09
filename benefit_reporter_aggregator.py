@@ -86,7 +86,9 @@ class BenefitDataAggregator:
         rows = self.aggregate_vendor(has_contract) + self.aggregate_sub(no_contract)
 
         for row in rows:
-            d_val = str(row.get('d', ''))
-            if d_val.startswith('研发支出-'):
+            d_val = str(row.get('d', '')).strip()
+            # 研发材料费的冲减来自 ETL 生成的材料侧负数行，
+            # 这里只做名称收口，不与研发机械租赁的抵减规则混用。
+            if d_val == '研发支出-材料费':
                 row['d'] = '减：研发费用-材料费'
         return self.sort_rows(self.merge_deductions(rows))
