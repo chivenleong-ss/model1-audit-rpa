@@ -368,6 +368,47 @@ class IntermediateTableBuilder:
             df_valid['中台单据号'] = df_valid.get('中台单据号', '').astype(str).replace('nan', '')
             df_valid['总账科目长文本'] = df_valid.get('总账科目长文本', '').astype(str).replace('nan', '')
 
+            # 安全生产-分包工程中，JSD 正 / SQD 负等内部冲销记录会在后续“减：安全生产-分包工程”
+            # 汇总时因 SQD 过滤造成单边计入。这里先按客商+合同净额化，消除这类对冲残差。
+            safe_subcon_mask = (
+                (df_valid['成本_财务大类'] == '(七)安全费')
+                & (df_valid['细分科目'] == '安全生产-分包工程')
+            )
+            if safe_subcon_mask.any():
+                safe_subcon = df_valid.loc[safe_subcon_mask].copy()
+                regroup_cols = ['利润中心', '工程名称', '项目编码', '客商名称', '合同编码', '成本_财务大类', '细分科目']
+                net_df = safe_subcon.groupby(regroup_cols, dropna=False, as_index=False)['最终发生额'].sum()
+                net_df = net_df[net_df['最终发生额'].round(2) != 0].copy()
+                net_df['中台单据号'] = ''
+                net_df['总账科目长文本'] = '安全生产-分包工程-净额'
+                for col in df_valid.columns:
+                    if col not in net_df.columns:
+                        net_df[col] = ''
+                net_df['利润中心'] = net_df['利润中心'].fillna('')
+                net_df['工程名称'] = net_df['工程名称'].fillna('')
+                net_df['项目编码'] = net_df['项目编码'].fillna('')
+                net_df['客商名称'] = net_df['客商名称'].fillna('')
+                net_df['合同编码'] = net_df['合同编码'].fillna('')
+                dropped = len(safe_subcon) - len(net_df)
+                df_valid = pd.concat([df_valid.loc[~safe_subcon_mask], net_df[df_valid.columns]], ignore_index=True)
+                if dropped > 0:
+                    self.log.info("🧹 安全生产-分包工程内部冲销净额化完成，压缩 %d 行", dropped)
+
+            # 分包工程中的独立 SQD 行会与安全生产-分包工程重分类重复计入。
+            # 这类行通常表现为：成本大类=分包工程、单据前缀=SQD、无客商/无合同，最终在审核表 D 列显示为“SQD”。
+            # 既然同类业务已经通过“(七)安全费 -> 安全生产-分包工程 -> 减：安全生产-分包工程”收口，
+            # 这里应从分包工程侧剔除，避免小计被整条 SQD 顶高。
+            subcontract_sqd_mask = (
+                (df_valid['成本_财务大类'] == '(二)分包工程')
+                & (df_valid['中台单据号'].astype(str).str.upper().str.startswith('SQD', na=False))
+                & (df_valid['合同编码'].fillna('').astype(str).str.strip() == '')
+                & (df_valid['客商名称'].fillna('').astype(str).str.strip().isin(['', 'SQD']))
+            )
+            if subcontract_sqd_mask.any():
+                removed = int(subcontract_sqd_mask.sum())
+                df_valid = df_valid.loc[~subcontract_sqd_mask].copy()
+                self.log.info("🧹 分包工程侧安全生产重复 SQD 已剔除 %d 行", removed)
+
             # 间接费/其他直接费合并
             merge_mask = df_valid['成本_财务大类'].isin(['(五)其他直接费', '(六)间接费']) & \
                          (df_valid['合同编码'] == '') & \

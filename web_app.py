@@ -435,19 +435,28 @@ def check_security():
 
     # ================= 2. 远程遥控器 (防泄露) =================
     # 【注意！】如果你之前的网址变了，请替换下面引号里的网址
-    control_url = "https://gitee.com/BenefitAuditSystem/config/blob/master/auth.txt"
-    try:
-        # 尝试去网上读取你的开关状态
-        response = urllib.request.urlopen(control_url, timeout=3)
-        status = response.read().decode('utf-8').strip()
-        
-        # 如果你把网上的字改成了 LOCKED，程序就打不开
-        if status != "ACTIVE":
-            messagebox.showerror("权限终止", "该版本已被原作者停用。")
-            sys.exit()
-    except Exception:
-        # 如果电脑没连网，这段代码默认放行，继续往下走
-        pass
+    control_url = "https://gitee.com/BenefitAuditSystem/config/raw/master/auth.txt"
+    import time
+    max_retries = 3          # 最多重试 3 次
+    timeout_sec = 5          # 每次请求超时 5 秒
+    retry_delay = 2          # 重试间隔 2 秒
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            # 尝试去网上读取你的开关状态
+            response = urllib.request.urlopen(control_url, timeout=timeout_sec)
+            status = response.read().decode('utf-8').strip()
+            # 如果你把网上的字改成了 LOCKED，程序就打不开
+            if status != "ACTIVE":
+                messagebox.showerror("权限终止", "该版本已被原作者停用。")
+                sys.exit()
+            break   # 读到 ACTIVE，跳出重试循环
+        except Exception:
+            if attempt < max_retries:
+                time.sleep(retry_delay)
+            else:
+                # 如果电脑没连网，这段代码默认放行，继续往下走
+                pass
 
     # ================= 3. 动态密码 =================
     # 密码规则：基础单词 Audit + 当前月份。比如5月份密码就是 Audit5
