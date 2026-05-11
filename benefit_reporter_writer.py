@@ -43,7 +43,11 @@ class BenefitSheetWriter:
     _SECTION_HEADER_MAP = {
         '(一)人工费': 'labor',
         '(二)分包工程': 'vendor',
+        '(三)材料费': 'material',
         '(四)机械租赁费': 'machine',
+        '(五)其他直接费': 'other',
+        '(六)间接费': 'other',
+        '(七)安全费': 'other',
     }
 
     def __init__(self, logger, locator):
@@ -72,6 +76,37 @@ class BenefitSheetWriter:
         except Exception:
             pass
         return text
+
+    @staticmethod
+    def _classify_gl_to_section(gl_text: str) -> str:
+        """从总账科目长文本判断属于审核表的哪个节（labor/vendor/material/machine/other）"""
+        if not gl_text or not isinstance(gl_text, str):
+            return 'other'
+        if '直接人工费' in gl_text:
+            return 'labor'
+        if '分包工程支出' in gl_text:
+            return 'vendor'
+        if '直接材料费' in gl_text or '原材料' in gl_text:
+            return 'material'
+        if '机械使用费' in gl_text:
+            return 'machine'
+        return 'other'
+
+    @staticmethod
+    def _classify_safety_by_opponent(opp_gl: str) -> str:
+        """根据对方科目描述判断安全生产费归属节（labor/vendor/machine/material/''）"""
+        if not opp_gl or not isinstance(opp_gl, str):
+            return ''
+        s = opp_gl.replace(' ', '')
+        if '直接人工' in s:
+            return 'labor'
+        if '分包' in s:
+            return 'vendor'
+        if '机械' in s:
+            return 'machine'
+        if '材料' in s or '原材料' in s:
+            return 'material'
+        return ''
 
     @staticmethod
     def copy_fill(src_cell, dst_cell):
@@ -343,6 +378,18 @@ class BenefitSheetWriter:
                     self._set_value(ws, total_row, col, '=' + '+'.join(f'{cl}{r}' for r in related_rows))
                 self.log.info("   🧮 成本及费用合计 强制重写 行%d", total_row)
 
+    @staticmethod
+    def _build_nested_lkp(df, v_col, c_col, amt_col, cat_col):
+        """将 groupby 结果转为嵌套 dict: {(v, c): {cat: amount}}"""
+        lkp = {}
+        grouped = df.groupby([v_col, c_col, cat_col], dropna=False)[amt_col].sum()
+        for (_v, _c, _cat), amt in grouped.items():
+            v = str(int(float(_v))) if pd.notna(_v) and _v else ''
+            c = str(_c or '').strip()
+            cat = str(_cat or 'other')
+            lkp.setdefault((v, c), {})[cat] = round(float(amt), 2)
+        return lkp
+
     def build_lookups(self, df4):
         required_cols = {'总账科目长文本', '供应商', '借方本位币金额'}
         missing = required_cols - set(df4.columns)
@@ -350,8 +397,8 @@ class BenefitSheetWriter:
             self.log.warning("   ⚠️ 合并表缺少字段，跳过 B/N/T 匹配：%s", "、".join(sorted(missing)))
             return {}, {}, {}, {}, {}
 
+        # --- vendor_lkp: 客商名称 → 供应商编码（不受窜项影响，保持不变） ---
         ven_col = '供应商名称' if '供应商名称' in df4.columns else ('供应商描述' if '供应商描述' in df4.columns else None)
-
         vendor_lkp = {}
         if ven_col:
             subset = df4[df4[ven_col].notna() & df4['供应商'].notna()]
@@ -369,6 +416,32 @@ class BenefitSheetWriter:
                     if (ven, '') not in vendor_lkp:
                         vendor_lkp[(ven, '')] = code
 
+        # --- 构建 中台单据号 → 成本大类 雷达字典（供 safe/rd 兜底使用） ---
+        has_doc = '中台单据号' in df4.columns
+        doc_cat_lkp = {}
+        if has_doc:
+            cost_mask = df4['总账科目长文本'].fillna('').str.contains(
+                r'合同履约成本\\工程施工成本', na=False
+            )
+            cost_df = df4[cost_mask].copy()
+            cost_df['_doc'] = (
+                cost_df['中台单据号'].fillna('').astype(str).str.strip().str.upper()
+            )
+            cost_df['_cat'] = cost_df['总账科目长文本'].apply(self._classify_gl_to_section)
+            valid = cost_df[cost_df['_doc'] != '']
+            for doc, grp in valid.groupby('_doc', sort=False):
+                if not grp.empty:
+                    doc_cat_lkp[doc] = grp['_cat'].value_counts().index[0]
+
+        def _norm_v(df):
+            return df['供应商'].fillna(0).apply(
+                lambda value: str(int(float(value))) if pd.notna(value) and value else ''
+            )
+
+        def _norm_c(df):
+            return df['合同'].fillna('').astype(str).str.strip()
+
+        # --- pay_lkp: 应付账款 → T列（保持原有(供应商,合同)扁平匹配，不做分类拆分） ---
         ap_mask = (
             df4['总账科目长文本'].fillna('').str.contains('应付账款')
             & ~df4['总账科目长文本'].fillna('').str.contains('待确认进项税额')
@@ -378,6 +451,7 @@ class BenefitSheetWriter:
         ap['_c'] = ap['合同'].fillna('').astype(str).str.strip()
         pay_lkp = dict(ap.groupby(['_v', '_c'])['借方本位币金额'].sum())
 
+        # --- vat_lkp: 待确认进项税额 → N列（保持原有(供应商,合同)扁平匹配，不做分类拆分） ---
         vat = df4[
             df4['总账科目长文本'].fillna('').str.contains('其他应收款')
             & df4['总账科目长文本'].fillna('').str.contains('待确认进项税额')
@@ -386,23 +460,55 @@ class BenefitSheetWriter:
         vat['_c'] = vat['合同'].fillna('').astype(str).str.strip()
         vat_lkp = dict(vat.groupby(['_v', '_c'])['借方本位币金额'].sum())
 
+        # --- safe_lkp: 安全生产费 → M列加回，优先用对方科目描述分类，兜底用中台单据号 ---
         safe_mask = (
             df4['总账科目长文本'].fillna('').str.contains('专项储备')
             & df4['总账科目长文本'].fillna('').str.contains('安全生产费')
             & df4['总账科目长文本'].fillna('').str.contains('发生数')
         )
         safe_df = df4[safe_mask].copy()
-        safe_df['_v'] = safe_df['供应商'].fillna(0).apply(lambda value: str(int(float(value))) if pd.notna(value) and value else '')
-        safe_df['_c'] = safe_df['合同'].fillna('').astype(str).str.strip()
-        safe_lkp = dict(safe_df.groupby(['_v', '_c'])['借方本位币金额'].sum())
+        safe_df['_v'] = _norm_v(safe_df)
+        safe_df['_c'] = _norm_c(safe_df)
 
+        opp_col = '对方科目描述' if '对方科目描述' in df4.columns else (
+            '对方科目名称' if '对方科目名称' in df4.columns else None
+        )
+        if opp_col:
+            safe_df['_cat'] = safe_df[opp_col].fillna('').apply(self._classify_safety_by_opponent)
+        else:
+            safe_df['_cat'] = ''
+
+        # 兜底：对方科目分类为空的，用 中台单据号 回查
+        fallback_mask = safe_df['_cat'] == ''
+        if fallback_mask.any() and has_doc:
+            safe_df.loc[fallback_mask, '_doc'] = (
+                safe_df.loc[fallback_mask, '中台单据号']
+                .fillna('').astype(str).str.strip().str.upper()
+            )
+            safe_df.loc[fallback_mask, '_cat'] = (
+                safe_df.loc[fallback_mask, '_doc'].map(doc_cat_lkp).fillna('other')
+            )
+        else:
+            safe_df.loc[fallback_mask, '_cat'] = 'other'
+
+        safe_lkp = self._build_nested_lkp(safe_df, '_v', '_c', '借方本位币金额', '_cat')
+
+        # --- rd_lkp: 研发支出租赁及运行维护费 → M列加回（机械节），同时覆盖全部研发子类 ---
         rd_mask = (
-            df4['总账科目长文本'].fillna('').str.contains(r'研发支出\\租赁及运行维护费', regex=True)
+            df4['总账科目长文本'].fillna('').str.contains(r'研发支出', regex=True)
         )
         rd_df = df4[rd_mask].copy()
-        rd_df['_v'] = rd_df['供应商'].fillna(0).apply(lambda value: str(int(float(value))) if pd.notna(value) and value else '')
-        rd_df['_c'] = rd_df['合同'].fillna('').astype(str).str.strip()
-        rd_lkp = dict(rd_df.groupby(['_v', '_c'])['借方本位币金额'].sum())
+        rd_df['_v'] = _norm_v(rd_df)
+        rd_df['_c'] = _norm_c(rd_df)
+        # 用总账科目末级分类
+        rd_df['_cat'] = rd_df['总账科目长文本'].fillna('').apply(
+            lambda x: 'machine' if '租赁及运行维护' in str(x) else (
+                'material' if '材料费' in str(x) else (
+                    'labor' if '人工' in str(x) else 'other'
+                )
+            )
+        )
+        rd_lkp = self._build_nested_lkp(rd_df, '_v', '_c', '借方本位币金额', '_cat')
 
         return vendor_lkp, pay_lkp, vat_lkp, safe_lkp, rd_lkp
 
@@ -440,6 +546,7 @@ class BenefitSheetWriter:
 
             if code:
                 self._set_value(ws, row, COL_B, code)
+
                 pay = pay_lkp.get((code, c_norm), 0)
                 if pay:
                     cell = ws.cell(row, COL_T)
@@ -453,9 +560,9 @@ class BenefitSheetWriter:
 
                 m_add = 0.0
                 if current_section in {'labor', 'vendor', 'machine'}:
-                    m_add += float(safe_lkp.get((code, c_norm), 0) or 0)
+                    m_add += float(safe_lkp.get((code, c_norm), {}).get(current_section, 0) or 0)
                 if current_section == 'machine':
-                    m_add += float(rd_lkp.get((code, c_norm), 0) or 0)
+                    m_add += float(rd_lkp.get((code, c_norm), {}).get('machine', 0) or 0)
                 if m_add != 0:
                     current_m = ws.cell(row, COL_M).value or 0
                     self._set_value(ws, row, COL_M, round(float(current_m) + m_add, 2))
