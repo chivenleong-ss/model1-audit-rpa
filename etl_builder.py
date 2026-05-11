@@ -173,6 +173,10 @@ class IntermediateTableBuilder:
                         # 如果有对方科目就用对方科目(如：周转材料)，没有就叫材料暂估
                         sub_cat = opp_gl_text if opp_gl_text else '其他'
                         amt = debit
+                        # ZGD 对应研发材料的，后续会在“研发支出”口径中体现，
+                        # 不应再作为材料费正数单列到材料节，否则会把材料费小计整体顶高。
+                        if '研发' in _norm_text(opp_gl_text):
+                            cat, sub_cat, amt = None, None, 0.0
                     
 
                 # 机械费
@@ -408,6 +412,21 @@ class IntermediateTableBuilder:
                 removed = int(subcontract_sqd_mask.sum())
                 df_valid = df_valid.loc[~subcontract_sqd_mask].copy()
                 self.log.info("🧹 分包工程侧安全生产重复 SQD 已剔除 %d 行", removed)
+
+            # 研发材料费的材料侧只保留普通冲减口径，任何 ZGD 研发材料正数/专项冲减都不应再留在材料费节，
+            # 否则会与八、研发费用中的 ZGD/普通研发材料同时存在，导致材料费小计重复。
+            rd_material_zgd_mask = (
+                (df_valid['成本_财务大类'] == '(三)材料费')
+                & (
+                    df_valid['细分科目'].fillna('').astype(str).str.contains(r'ZGD-.*研发.*材料费', regex=True)
+                    | df_valid['总账科目长文本'].fillna('').astype(str).str.contains(r'研发支出\\材料费', regex=True)
+                      & df_valid['中台单据号'].fillna('').astype(str).str.upper().str.startswith('ZGD', na=False)
+                )
+            )
+            if rd_material_zgd_mask.any():
+                removed = int(rd_material_zgd_mask.sum())
+                df_valid = df_valid.loc[~rd_material_zgd_mask].copy()
+                self.log.info("🧹 材料费侧 ZGD 研发材料已剔除 %d 行", removed)
 
             # 间接费/其他直接费合并
             merge_mask = df_valid['成本_财务大类'].isin(['(五)其他直接费', '(六)间接费']) & \
